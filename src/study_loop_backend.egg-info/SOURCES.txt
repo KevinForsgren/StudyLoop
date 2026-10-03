@@ -20,3 +20,4 @@ src/study_loop_backend.egg-info/SOURCES.txt
 src/study_loop_backend.egg-info/dependency_links.txt
 src/study_loop_backend.egg-info/requires.txt
 src/study_loop_backend.egg-info/top_level.txt
+tests/test_auth_final.py

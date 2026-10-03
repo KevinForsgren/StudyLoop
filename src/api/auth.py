@@ -5,7 +5,8 @@ Authentication API endpoints.
 
 import sys
 from datetime import timedelta
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy import text
 
@@ -56,6 +57,7 @@ async def register(request: RegisterRequest):
             "password_hash": password_hash
         }
     )
+    auth_service.commit()
     
     # Get the created user
     user = auth_service.fetchone(
@@ -89,7 +91,7 @@ async def login(request: LoginRequest):
     # Create access token
     access_token_expires = timedelta(minutes=30)
     access_token = security.create_access_token(
-        data={"sub": dict(user._asdict())["id"] if hasattr(user, '_asdict') else user["id"]},
+        data={"sub": str(dict(user._asdict())["id"] if hasattr(user, '_asdict') else user["id"])},
         expires_delta=access_token_expires
     )
     
@@ -101,3 +103,42 @@ async def login(request: LoginRequest):
         "token_type": "bearer",
         "user": user_dict
     }
+
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+):
+    """Resolve the authenticated user from the Authorization bearer token.
+
+    Used as a FastAPI dependency on user-specific routes. Raises 401 when the
+    token is missing, invalid, expired, or references a non-existent user.
+    """
+    if credentials is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = security.verify_token(credentials.credentials)
+    if payload is None or "sub" not in payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        user_id = int(payload["sub"])
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = auth_service.fetchone(
+        "SELECT * FROM users WHERE id = :id", {"id": user_id}
+    )
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user

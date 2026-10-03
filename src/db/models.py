@@ -137,8 +137,12 @@ class BaseService:
         """Delete object from database."""
         self.db.delete(obj)
     
-    def execute(self, statement):
+    def execute(self, statement, params: Optional[dict] = None):
         """Execute SQL statement."""
+        if params:
+            if isinstance(statement, str):
+                statement = text(statement)
+            return self.db.execute(statement, params)
         return self.db.execute(text(statement))
     
     def scalar(self, statement, params: Optional[dict] = None):

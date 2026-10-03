@@ -4,9 +4,11 @@ Performance API endpoints - placeholder for Phase 1.
 This will be implemented in subsequent phases.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-router = APIRouter()
+from api.auth import get_current_user
+
+router = APIRouter(dependencies=[Depends(get_current_user)])
 @router.get("/")
 async def get_performance():
     """Get performance data - placeholder endpoint."""
