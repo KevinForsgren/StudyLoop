@@ -70,6 +70,12 @@ SECRET_KEY=your-secret-key-here-change-this-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
+# AI Integration
+# ~4B model sized for reliable structured output without being heavy on
+# local machines. Finish pulling it with:  ollama pull gemma3:4b
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=Qwen2.5-Coder
+
 # CORS
 ALLOWED_ORIGINS=http://localhost:3000
 

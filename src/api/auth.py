@@ -30,6 +30,14 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+def _to_dict(row):
+    return dict(row._asdict()) if hasattr(row, '_asdict') else dict(row)
+
 @router.post("/register")
 async def register(request: RegisterRequest):
     """Register a new user account."""
@@ -142,3 +150,30 @@ def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
     return user
+
+
+@router.post("/change-password")
+def change_password(
+    request: ChangePasswordRequest,
+    user=Depends(get_current_user),
+):
+    """Change the authenticated user's password after verifying the current one."""
+    user_id = _to_dict(user)["id"]
+    user_row = auth_service.fetchone(
+        "SELECT * FROM users WHERE id = :id", {"id": user_id}
+    )
+    user_map = _to_dict(user_row)
+
+    if not security.verify_password(request.current_password, user_map["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(request.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    new_hash = security.hash_password(request.new_password)
+    auth_service.execute(
+        "UPDATE users SET password_hash = :hash WHERE id = :id",
+        {"hash": new_hash, "id": user_id},
+    )
+    auth_service.commit()
+
+    return {"message": "Password changed successfully"}
