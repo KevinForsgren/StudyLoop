@@ -1,3 +1,20 @@
+# Local / scratch
 .backboard
+.idea/
 
+# Environment / secrets
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+*.sqlite3
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/

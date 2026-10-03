@@ -1,45 +1,59 @@
-# StudyLoop Backend
+# StudyLoop
 
-Backend for StudyLoop - a web app to help maintain consistency with work and goals.
+A web app that helps a user stay consistent with their work and goals using a
+locally hosted LLM for planning, a task/plan planner, a GitHub-style
+consistency graph, performance reports, and a Pomodoro focus timer.
 
-## Overview
+Frontend and backend live in separate directories and share a single `.env`
+at the repository root.
 
-This is the FastAPI backend that powers the StudyLoop application. It provides:
+## Layout
 
-- User authentication and authorization
-- Task and schedule management
-- Performance tracking
-- AI planning assistance (planned for Phase 2)
+```
+.
+├── backend/    FastAPI + SQLite backend (Phase 1 & 2)
+│   └── src/    Application source (api, db, security, services, config)
+├── frontend/   React + Tailwind (Vite) frontend (Phase 3)
+├── agent/      Project specifications (SPEC.md, BACKEND.md, UI.md)
+├── .env        Shared config for both backend and frontend
+└── .env.template
+```
 
-## API Documentation
+## Shared configuration
 
-See `docs/openapi.json` for the full API specification.
+- One `.env` lives at the repository root and is read by both sides.
+- Backend: `backend/src/config/settings.py` resolves it from the repo root and
+  ignores any variable it does not declare (so `VITE_*` frontend vars are safe).
+- Frontend: `frontend/vite.config.js` sets `envDir: '..'`, so Vite loads the
+  same root `.env` and exposes `VITE_*` variables at build time.
 
-## Database
+## Run the backend
 
-SQLite is used for local development. In production, this would be replaced with a more robust database.
+```bash
+cd backend
+../.venv/bin/python -m uvicorn src.main:app --reload
+# API + /docs at http://127.0.0.1:8000
+```
 
-## Setup
+Verify: `../.venv/bin/python tests/test_auth_final.py`
 
-1. Install dependencies: `pip install -r requirements.txt`
-2. Copy `.env.template` to `.env` and configure settings
-3. Run the server: `uvicorn main:app --reload`
+## Run the frontend
 
-## Structure
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:3000
+npm run build        # production build into frontend/dist
+```
 
-- `src/` - Application source code
-  - `api/` - FastAPI routes and endpoints
-  - `core/` - Business logic and services
-  - `db/` - Database models and service layer
-  - `security/` - Authentication and security utilities
-  - `config/` - Application configuration
-- `tests/` - Test files
-- `docs/` - API documentation
+## Testing
 
-## API Endpoints
+- Backend suites: `backend/tests/` (auth + end-to-end Phase 2 checks).
+- Authentication: `cd backend && ../.venv/bin/python tests/test_auth_final.py`
 
-- `/auth/` - Authentication endpoints
-- `/tasks/` - Task management endpoints
-- `/plans/` - Schedule/plan management endpoints
-- `/performance/` - Performance tracking endpoints
-- `/chat/` - AI chat endpoints (planned for Phase 2)
+## Notes
+
+- Database: SQLite file lives at `backend/studyloop.db` (see `DATABASE_URL`).
+- AI: uses a local Ollama server (`OLLAMA_BASE_URL`/`OLLAMA_MODEL`). If the
+  model is unavailable the app degrades gracefully (chat returns a clear error,
+  performance reports fall back to a computed summary).
