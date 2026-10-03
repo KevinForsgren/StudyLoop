@@ -14,7 +14,6 @@ sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/src')
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import text
 
 from api.auth import get_current_user
 from db.models import BaseService

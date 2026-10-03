@@ -8,7 +8,6 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from sqlalchemy import text
 
 # Import from src directory using absolute imports
 sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/src')
