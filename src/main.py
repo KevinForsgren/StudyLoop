@@ -10,8 +10,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Add current directory to Python path to enable absolute imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add src directory to Python path to enable absolute imports
+sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/src')
 
 from api.auth import router as auth_router
 from api.tasks import router as tasks_router
@@ -43,7 +43,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure this properly in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

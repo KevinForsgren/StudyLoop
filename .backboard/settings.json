@@ -35,7 +35,17 @@
 			"write(=/home/kevin/Desktop/Github/StudyLoop/QUICK_TEST.md)",
 			"write(=/home/kevin/Desktop/Github/StudyLoop/PHASE1_VERIFICATION.md)",
 			"write(=/home/kevin/Desktop/Github/StudyLoop/verify_phase1.sh)",
-			"write(=/home/kevin/Desktop/Github/StudyLoop/TUTORIAL_PHASE1.md)"
+			"write(=/home/kevin/Desktop/Github/StudyLoop/TUTORIAL_PHASE1.md)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_auth_fix.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_auth_issue.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/debug_auth.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_manual_auth.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_manual_auth_fixed.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_simple_auth.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_auth_final.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/simple_auth_test.py)",
+			"execute(python -c \"import jwt; print(jwt.__name__)\" 2>&1 || echo \"jwt not available\")",
+			"execute(python -c \"from jose import JWTError; print('jose available')\" 2>&1 || echo \"jose not available\")"
 		]
 	}
 }

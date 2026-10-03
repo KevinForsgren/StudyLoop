@@ -5,8 +5,9 @@ Authentication API endpoints.
 
 import sys
 from datetime import timedelta
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import text
 
 # Import from src directory using absolute imports
 sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/src')
@@ -17,14 +18,25 @@ from security.auth import security
 
 router = APIRouter()
 auth_service = BaseService(db.get_session())
+
+# Pydantic models for request validation
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 @router.post("/register")
-async def register(username: str, email: str, password: str):
+async def register(request: RegisterRequest):
     """Register a new user account."""
     
     # Check if user already exists
     existing_user = auth_service.fetchone(
         "SELECT * FROM users WHERE username = :username OR email = :email",
-        {"username": username, "email": email}
+        {"username": request.username, "email": request.email}
     )
     
     if existing_user:
@@ -34,13 +46,13 @@ async def register(username: str, email: str, password: str):
         )
     
     # Hash password and create user
-    password_hash = security.hash_password(password)
+    password_hash = security.hash_password(request.password)
     
     auth_service.execute(
         "INSERT INTO users (username, email, password_hash) VALUES (:username, :email, :password_hash)",
         {
-            "username": username,
-            "email": email,
+            "username": request.username,
+            "email": request.email,
             "password_hash": password_hash
         }
     )
@@ -48,7 +60,7 @@ async def register(username: str, email: str, password: str):
     # Get the created user
     user = auth_service.fetchone(
         "SELECT * FROM users WHERE username = :username",
-        {"username": username}
+        {"username": request.username}
     )
     
     # Remove password hash from response
@@ -57,17 +69,17 @@ async def register(username: str, email: str, password: str):
     
     return {"message": "User registered successfully", "user": user_dict}
 @router.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(request: LoginRequest):
     """Login a user and return access token."""
     
     # Find user by username
     user = auth_service.fetchone(
         "SELECT * FROM users WHERE username = :username",
-        {"username": form_data.username}
+        {"username": request.username}
     )
     
     if not user or not security.verify_password(
-        form_data.password, dict(user._asdict())["password_hash"] if hasattr(user, '_asdict') else user["password_hash"]
+        request.password, dict(user._asdict())["password_hash"] if hasattr(user, '_asdict') else user["password_hash"]
     ):
         raise HTTPException(
             status_code=401,

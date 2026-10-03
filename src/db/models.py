@@ -5,11 +5,12 @@ Database models for StudyLoop.
 
 import sys
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, List, Any
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import text
 
 # Add src directory to Python path for module imports
 sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/src')
@@ -138,21 +139,36 @@ class BaseService:
     
     def execute(self, statement):
         """Execute SQL statement."""
-        return self.db.execute(statement)
+        return self.db.execute(text(statement))
     
-    def scalar(self, statement):
+    def scalar(self, statement, params: Optional[dict] = None):
         """Execute statement and return scalar result."""
-        result = self.db.execute(statement)
+        if params:
+            if isinstance(statement, str):
+                statement = text(statement)
+            result = self.db.execute(statement, params)
+        else:
+            result = self.db.execute(statement)
         return result.scalar()
     
-    def fetchall(self, statement):
+    def fetchall(self, statement, params: Optional[dict] = None):
         """Execute statement and return all results."""
-        result = self.db.execute(statement)
+        if params:
+            if isinstance(statement, str):
+                statement = text(statement)
+            result = self.db.execute(statement, params)
+        else:
+            result = self.db.execute(statement)
         return result.fetchall()
     
-    def fetchone(self, statement):
+    def fetchone(self, statement, params: Optional[dict] = None):
         """Execute statement and return single result."""
-        result = self.db.execute(statement)
+        if params:
+            if isinstance(statement, str):
+                statement = text(statement)
+            result = self.db.execute(statement, params)
+        else:
+            result = self.db.execute(statement)
         return result.fetchone()
     
     def bulk_update_mappings(self, mapper, mappings):
