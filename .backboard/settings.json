@@ -1,0 +1,41 @@
+{
+	"permissions": {
+		"allow": [
+			"read",
+			"execute(ls -la:*)",
+			"execute(cd /home/kevin/Desktop/Github/StudyLoop:*)",
+			"glob",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/pyproject.toml)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/requirements.txt)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/README.md)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/__init__.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/main.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/config/__init__.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/config/settings.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/db/__init__.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/db/models.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/db/session.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/security/__init__.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/security/auth.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/api/__init__.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/api/auth.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/.env.template)",
+			"execute(find /home/kevin/Desktop/Github/StudyLoop -type f -name \"*.py\" | head -20)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/api/chat.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/api/tasks.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/api/plans.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/src/api/performance.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_backend.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/fixed_main.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_imports.py)",
+			"execute(pip install:*)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/test_phase1.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/run_tests.py)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/setup_uv_env.sh)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/QUICK_TEST.md)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/PHASE1_VERIFICATION.md)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/verify_phase1.sh)",
+			"write(=/home/kevin/Desktop/Github/StudyLoop/TUTORIAL_PHASE1.md)"
+		]
+	}
+}

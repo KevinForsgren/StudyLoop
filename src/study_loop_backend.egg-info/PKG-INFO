@@ -1,0 +1,70 @@
+Metadata-Version: 2.4
+Name: study-loop-backend
+Version: 0.1.0
+Summary: Backend for StudyLoop - a web app to help maintain consistency with work and goals
+Author: StudyLoop
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: uvicorn[standard]>=0.24.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: python-multipart>=0.0.8
+Requires-Dist: python-jose[cryptography]>=3.3.0
+Requires-Dist: passlib[bcrypt]>=1.7.4
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: typing-extensions>=4.0.0
+Requires-Dist: pydantic-settings>=2.8.1
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: httpx>=0.24.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.0.0; extra == "dev"
+
+# StudyLoop Backend
+
+Backend for StudyLoop - a web app to help maintain consistency with work and goals.
+
+## Overview
+
+This is the FastAPI backend that powers the StudyLoop application. It provides:
+
+- User authentication and authorization
+- Task and schedule management
+- Performance tracking
+- AI planning assistance (planned for Phase 2)
+
+## API Documentation
+
+See `docs/openapi.json` for the full API specification.
+
+## Database
+
+SQLite is used for local development. In production, this would be replaced with a more robust database.
+
+## Setup
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Copy `.env.template` to `.env` and configure settings
+3. Run the server: `uvicorn main:app --reload`
+
+## Structure
+
+- `src/` - Application source code
+  - `api/` - FastAPI routes and endpoints
+  - `core/` - Business logic and services
+  - `db/` - Database models and service layer
+  - `security/` - Authentication and security utilities
+  - `config/` - Application configuration
+- `tests/` - Test files
+- `docs/` - API documentation
+
+## API Endpoints
+
+- `/auth/` - Authentication endpoints
+- `/tasks/` - Task management endpoints
+- `/plans/` - Schedule/plan management endpoints
+- `/performance/` - Performance tracking endpoints
+- `/chat/` - AI chat endpoints (planned for Phase 2)

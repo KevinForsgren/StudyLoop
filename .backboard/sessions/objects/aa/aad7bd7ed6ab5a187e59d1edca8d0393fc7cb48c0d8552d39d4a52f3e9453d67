@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""
+Simple test to check imports.
+"""
+
+import sys
+import os
+
+print("Testing imports from different paths...")
+
+# Change to src directory and try to import
+os.chdir('src')
+sys.path.insert(0, '.')
+
+try:
+    from main import app
+    print("✓ FastAPI app imported from 'src' directory")
+except Exception as e:
+    print(f"✗ Failed to import FastAPI app: {e}")
+
+try:
+    from api.auth import router
+    print("✓ Auth router imported successfully")
+except Exception as e:
+    print(f"✗ Failed to import auth router: {e}")
+
+try:
+    from security.auth import SecurityUtils
+    print("✓ Security utilities imported successfully")
+except Exception as e:
+    print(f"✗ Failed to import security utilities: {e}")
+
+try:
+    from db.session import db
+    print("✓ Database session imported successfully")
+except Exception as e:
+    print(f"✗ Failed to import database session: {e}")
+
+try:
+    from db.models import User
+    print("✓ Database models imported successfully")
+except Exception as e:
+    print(f"✗ Failed to import database models: {e}")
