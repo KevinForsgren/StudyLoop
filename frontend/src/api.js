@@ -9,6 +9,24 @@
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 const UNREACHABLE = 'Cannot reach the StudyLoop server. Is the backend running?'
 
+// Coerce API values to a flat string so components never render objects.
+function toText(value) {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object') {
+    const pick = ['content', 'response', 'text', 'message'].find(
+      (k) => typeof value[k] === 'string',
+    )
+    if (pick) return value[pick]
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
+}
+
 export async function request(method, path, body = undefined, { signal } = {}) {
   let res
   try {
@@ -67,6 +85,17 @@ export const api = {
   generateReport: (b, signal) =>
     request('POST', '/performance/report', b || { days: 7 }, { signal }),
 
-  chat: (message, signal) => request('POST', '/chat/', { message }, { signal }),
-  chatHistory: (signal) => request('GET', '/chat/history', undefined, { signal }),
+  chat: (message, signal) =>
+    request('POST', '/chat/', { message }, { signal }).then((data) => ({
+      response: toText(data && data.response),
+      message: toText(data && data.message),
+    })),
+  chatHistory: (signal) =>
+    request('GET', '/chat/history', undefined, { signal }).then((data) => ({
+      chats: ((data && data.chats) || []).map((c) => ({
+        ...c,
+        message: toText(c && c.message),
+        response: toText(c && c.response),
+      })),
+    })),
 }

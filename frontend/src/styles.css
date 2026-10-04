@@ -1,11 +1,35 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Tailwind plugins (v4 @plugin API) */
+@plugin "@tailwindcss/typography";
+
+/* Class-based dark mode: the app puts .dark on <html> */
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* ------------------------------------------------------------------ */
-/* Semantic design tokens (UI.md §3). Values are RGB triplets consumed */
-/* by Tailwind via `rgb(var(--token) / <alpha-value>)`.               */
+/* Semantic design tokens (UI.md §3). RGB triplets -> Tailwind color  */
+/* utilities such as bg-card, text-foreground, border-border, etc.    */
 /* ------------------------------------------------------------------ */
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-card: rgb(var(--card));
+  --color-card-foreground: rgb(var(--card-foreground));
+  --color-border: rgb(var(--border));
+  --color-primary: rgb(var(--primary));
+  --color-primary-foreground: rgb(var(--primary-foreground));
+  --color-secondary: rgb(var(--secondary));
+  --color-secondary-foreground: rgb(var(--secondary-foreground));
+  --color-accent: rgb(var(--accent));
+  --color-destructive: rgb(var(--destructive));
+  --color-success: rgb(var(--success));
+  --color-warning: rgb(var(--warning));
+}
+
 :root,
 .light {
   --background: 250 250 249;
@@ -66,7 +90,7 @@ html {
 body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* Thin, quiet scrollbar */

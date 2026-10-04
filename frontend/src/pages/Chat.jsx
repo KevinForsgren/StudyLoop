@@ -1,5 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { api } from '../api'
+
+// Coerce arbitrary API values into a flat string so ReactMarkdown (which
+// strictly requires a single string child) and React children never crash.
+function toText(value) {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object') {
+    // Prefer a nested string field if one is present (e.g. { content }, { response }).
+    const pick = ['content', 'response', 'text', 'message'].find(
+      (k) => typeof value[k] === 'string',
+    )
+    if (pick) return value[pick]
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
+}
 
 export default function Chat() {
   const [messages, setMessages] = useState([])
@@ -10,8 +31,6 @@ export default function Chat() {
   const active = useRef(null)
   const endRef = useRef(null)
 
-  // Each visit is a fresh session. Load the persisted history, and abort any
-  // in-flight request when the user navigates away.
   useEffect(() => {
     const c = new AbortController()
     active.current = c
@@ -26,108 +45,163 @@ export default function Chat() {
   }, [])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'nearest' })
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages])
 
   async function send(e) {
-    e.preventDefault()
+    if (e) e.preventDefault()
     const text = input.trim()
     if (!text || busy) return
+    
     setMessages((m) => [...m, { role: 'user', content: text }])
     setInput('')
     setBusy(true)
     setError(null)
+    
     const c = new AbortController()
     if (active.current) active.current.abort()
     active.current = c
+    
     try {
       const res = await api.chat(text, c.signal)
-      setMessages((m) => [...m, { role: 'assistant', content: res.response }])
-      // refresh the persisted history sidebar in the background (no abort)
+      setMessages((m) => [...m, { role: 'assistant', content: toText(res.response) }])
       api.chatHistory().then((d) => setHistory(d.chats || [])).catch(() => {})
     } catch (err) {
       if (err.name === 'AbortError') return
-      setError(err.message)
+      setError(err.message || 'Something went wrong')
       setMessages((m) => m.slice(0, -1))
     } finally {
       setBusy(false)
     }
   }
 
+  function stopGeneration() {
+    if (active.current) {
+      active.current.abort()
+      setBusy(false)
+    }
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      send()
+    }
+  }
+
   function loadHistory(m) {
-    // Clicking a past exchange reopens it as a fresh active conversation.
+    // Add fallback empty strings to prevent ReactMarkdown from receiving undefined
     setMessages([
-      { role: 'user', content: m.message },
-      { role: 'assistant', content: m.response },
+      { role: 'user', content: toText(m.message) },
+      { role: 'assistant', content: toText(m.response) },
     ])
   }
 
   return (
-    <div className="flex gap-6">
-      <div className="flex-1 flex flex-col bg-card border rounded-xl min-h-[28rem]">
-        <div className="px-4 py-3 border-b border-border">
-          <h1 className="font-semibold">Assistant</h1>
-          <p className="text-xs text-muted-foreground">Plan, brainstorm, and clarify your work.</p>
+    <div className="w-[calc(100vw-15rem)] relative left-1/2 -translate-x-1/2 flex gap-6 px-6 h-[calc(100vh-9rem)] min-h-[500px]">
+      
+      {/* MAIN CHAT AREA */}
+      <div className="flex-1 flex flex-col bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border bg-card z-10 shadow-sm">
+          <h1 className="font-semibold text-lg">Assistant</h1>
+          <p className="text-sm text-muted-foreground">Plan, brainstorm, and clarify your work.</p>
         </div>
 
-        <div className="flex-1 overflow-auto px-4 py-3 space-y-3">
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
           {messages.length === 0 && (
-            <p className="text-muted-foreground text-sm py-8 text-center">
-              Start a conversation about what you want to get done.
-            </p>
+            <div className="flex h-full items-center justify-center">
+              <p className="text-muted-foreground text-sm text-center">
+                Start a conversation about what you want to get done.
+              </p>
+            </div>
           )}
           {messages.map((m, i) => (
             <div
               key={i}
-              className={`max-w-[85%] px-3 py-2 rounded-lg text-sm leading-relaxed ${
+              className={`w-fit max-w-[85%] px-5 py-3 rounded-2xl text-sm leading-relaxed ${
                 m.role === 'user'
-                  ? 'bg-primary text-primary-foreground self-end ml-auto'
-                  : 'bg-secondary text-secondary-foreground'
+                  ? 'bg-primary text-primary-foreground self-end rounded-tr-sm'
+                  : 'bg-secondary text-secondary-foreground self-start rounded-tl-sm shadow-sm border border-border/50'
               }`}
             >
-              {m.content}
+              {m.role === 'assistant' ? (
+                <ReactMarkdown className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-pre:bg-background prose-pre:border prose-pre:border-border max-w-none break-words">
+                  {toText(m.content)}
+                </ReactMarkdown>
+              ) : (
+                <div className="whitespace-pre-wrap">{toText(m.content)}</div>
+              )}
             </div>
           ))}
+          {busy && (
+            <div className="w-fit max-w-[85%] px-5 py-3 rounded-2xl text-sm bg-secondary text-secondary-foreground self-start rounded-tl-sm animate-pulse border border-border/50">
+              Generating response...
+            </div>
+          )}
           <span ref={endRef} />
         </div>
 
-        {error && <p className="px-3 py-1 text-xs text-destructive">{error}</p>}
+        {error && <p className="px-5 py-2 text-sm text-destructive bg-destructive/10 border-t border-destructive/20">{error}</p>}
 
-        <form onSubmit={send} className="flex gap-2 border-t border-border px-3 py-2">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Message the assistant…"
-            aria-label="Message"
-            className="flex-1 px-3 py-2 border border-border rounded-md bg-transparent text-sm"
-          />
-          <button
-            type="submit"
-            disabled={busy || !input.trim()}
-            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50"
-          >
-            {busy ? '…' : 'Send'}
-          </button>
-        </form>
+        {/* INPUT AREA */}
+        <div className="p-4 border-t border-border bg-card">
+          <form onSubmit={send} className="relative flex flex-col gap-3">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Message the assistant... (Shift+Enter for new line)"
+              aria-label="Message"
+              rows={3}
+              className="w-full px-4 py-3 border border-border rounded-lg bg-background text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">
+                AI can make mistakes. Check important info.
+              </span>
+              <div className="flex gap-2">
+                {busy && (
+                  <button
+                    type="button"
+                    onClick={stopGeneration}
+                    className="px-4 py-2 rounded-md border border-border bg-secondary text-secondary-foreground text-sm hover:bg-secondary/80 transition-colors"
+                  >
+                    Stop
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={busy || !input.trim()}
+                  className="px-6 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50 hover:bg-primary/90 transition-colors"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <aside className="w-64 border rounded-xl bg-card self-start">
-        <h2 className="px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
-          Past chats
-        </h2>
-        <ul className="divide-y divide-border max-h-[24rem] overflow-auto">
+      {/* PAST CHATS SIDEBAR */}
+      <aside className="w-80 shrink-0 flex flex-col border border-border rounded-xl bg-card overflow-hidden">
+        <div className="px-4 py-4 border-b border-border bg-card">
+          <h2 className="text-xs uppercase font-semibold tracking-wider text-muted-foreground">
+            Past chats
+          </h2>
+        </div>
+        <ul className="flex-1 overflow-y-auto divide-y divide-border">
           {history.length === 0 && (
-            <li className="px-3 py-3 text-xs text-muted-foreground">No history yet.</li>
+            <li className="px-4 py-6 text-sm text-center text-muted-foreground">No history yet.</li>
           )}
           {history.map((m) => (
             <li key={m.id}>
               <button
                 onClick={() => loadHistory(m)}
-                className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-secondary truncate"
-                title={m.message}
+                className="w-full text-left px-4 py-3 text-sm text-muted-foreground hover:bg-secondary transition-colors focus:outline-none focus:bg-secondary"
+                title={toText(m.message)}
               >
-                {m.message}
-                <span className="block text-[10px] opacity-70">{m.date} {m.time}</span>
+                <span className="line-clamp-2 text-foreground font-medium mb-1">{toText(m.message)}</span>
+                <span className="block text-[11px] opacity-60">{toText(m.date)} {toText(m.time)}</span>
               </button>
             </li>
           ))}
