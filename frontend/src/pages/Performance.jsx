@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 
 function streakStats(daily) {
-  // daily: [{date, percent, ...}] oldest -> newest. Count consecutive trailing
-  // days with any activity (percent > 0) as the current streak.
   let current = 0
   for (let i = daily.length - 1; i >= 0; i--) {
     if (daily[i].percent > 0) current++
@@ -18,20 +16,25 @@ function streakStats(daily) {
   return { current, best }
 }
 
-function Donut({ percent, size = 180, stroke = 18 }) {
+function Donut({ percent, size = 160, stroke = 14 }) {
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const off = c * (1 - percent / 100)
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(var(--border))" strokeWidth={stroke} />
+        <circle 
+          cx={size / 2} cy={size / 2} r={r} 
+          fill="none" 
+          stroke="currentColor" 
+          className="text-muted/20" 
+          strokeWidth={stroke} 
+        />
         <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
+          cx={size / 2} cy={size / 2} r={r}
           fill="none"
-          stroke="rgb(var(--accent))"
+          stroke="currentColor"
+          className="text-emerald-500"
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={c}
@@ -39,12 +42,72 @@ function Donut({ percent, size = 180, stroke = 18 }) {
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>
-      <div className="absolute inset-0 grid place-items-center">
-        <span className="text-2xl font-semibold tabular-nums">{Math.round(percent)}%</span>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-3xl font-bold tabular-nums text-foreground">{Math.round(percent)}%</span>
+        <span className="text-xs text-muted-foreground uppercase font-medium mt-0.5">Completed</span>
       </div>
     </div>
   )
 }
+
+function LegendItem({ dotClass, label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-6 text-sm mb-3 last:mb-0 w-full">
+      <div className="flex items-center gap-2.5">
+        <div className={`w-3 h-3 rounded-full ${dotClass}`} />
+        <span className="text-muted-foreground font-medium">{label}</span>
+      </div>
+      <span className="font-bold tabular-nums text-base">{value}</span>
+    </div>
+  )
+}
+
+function StreakBars({ daily }) {
+  const days = daily && daily.length > 0 
+    ? daily.slice(-7) 
+    : Array(7).fill({ percent: 0, date: null });
+
+  return (
+    <div className="flex items-end justify-between mt-auto h-40 gap-3 pt-6">
+      {days.map((d, i) => {
+        let dayLabel = "DAY"
+        if (d.date) {
+          try {
+            dayLabel = new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' })
+          } catch (e) {
+            dayLabel = d.date.substring(0,3)
+          }
+        }
+        
+        const height = Math.max((d.percent || 0), 8); 
+        
+        return (
+          <div key={i} className="flex flex-col items-center gap-3 flex-1 h-full">
+            <div className="w-full max-w-[16px] bg-muted/30 rounded-full h-full flex items-end overflow-hidden">
+              <div
+                className="w-full bg-emerald-500 rounded-full transition-all duration-500"
+                style={{ height: `${height}%` }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground font-medium">{dayLabel}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const CalendarIcon = () => (
+  <svg className="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+);
+
+const DocumentIcon = () => (
+  <svg className="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
 
 export default function Performance() {
   const [data, setData] = useState(null)
@@ -82,66 +145,115 @@ export default function Performance() {
   const remaining = s.incomplete || 0
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Performance</h1>
-        <p className="text-muted-foreground text-sm mt-1">Last {data ? (s.daily?.length || 7) : 7} days</p>
+    <div className="max-w-6xl mx-auto space-y-10 p-4 md:p-8">
+      
+      <div className="flex justify-center mb-10">
+        <h1 className="text-4xl font-bold tracking-tight text-foreground bg-background px-6 py-2 rounded-xl">
+          Performance
+        </h1>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <div className="bg-destructive/10 text-destructive p-4 rounded-lg text-base text-center font-medium">
+          {error}
+        </div>
+      )}
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <section className="bg-card border rounded-xl p-5 flex flex-col items-center">
-          <h2 className="font-medium">Weekly Progress</h2>
-          <p className="text-xs text-muted-foreground">This week</p>
-          <Donut percent={s.completion_percentage || 0} />
-          <div className="flex gap-4 text-xs mt-2">
-            <Stat n={done} label="Completed" />
-            <Stat n={remaining} label="Remaining" />
-            <Stat n={total} label="Total" />
+      {/* Strict Grid to ensure identical dimensions */}
+      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-2 auto-rows-fr">
+        
+        {/* Weekly Progress Card */}
+        <section className="bg-card border rounded-[2rem] p-8 shadow-sm flex flex-col min-h-[380px]">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-muted/30 rounded-xl">
+              <CalendarIcon />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold leading-none">Weekly Progress</h2>
+              <p className="text-base text-muted-foreground mt-1.5">This week (Mon - Sun)</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between mt-auto">
+            <Donut percent={s.completion_percentage || 0} />
+            
+            <div className="flex flex-col flex-1 ml-10">
+              <LegendItem dotClass="bg-emerald-500" label="Completed" value={done} />
+              <LegendItem dotClass="bg-muted-foreground/30" label="Remaining" value={remaining} />
+              <div className="h-px bg-border my-3 w-full" />
+              <LegendItem dotClass="bg-transparent" label="Total" value={total} />
+            </div>
           </div>
         </section>
 
-        <section className="bg-card border rounded-xl p-5">
-          <h2 className="font-medium">Current Streak</h2>
-          <p className="text-sm text-success mt-1">Keep the momentum going!</p>
-          <p className="text-4xl font-semibold tabular-nums mt-2">{current} {current === 1 ? 'day' : 'days'}</p>
-          <p className="text-xs text-muted-foreground">Best: {best} days</p>
+        {/* Current Streak Card */}
+        <section className="bg-card border rounded-[2rem] p-8 shadow-sm flex flex-col min-h-[380px]">
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold mb-2">Current Streak</h2>
+            <p className="text-base text-muted-foreground">Keep the momentum going!</p>
+          </div>
+          
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-6xl font-bold tracking-tight">{current}</span>
+              <span className="text-2xl text-muted-foreground font-medium">days</span>
+            </div>
+            <p className="text-base text-muted-foreground mt-2 font-medium">Best: {best} days</p>
+          </div>
+
+          <StreakBars daily={s.daily} />
         </section>
 
-        <section className="bg-card border rounded-xl p-5">
-          <h2 className="font-medium">Weekly Performance</h2>
-          <p className="text-xs text-muted-foreground mt-1">Last week's summary</p>
-          <button
-            onClick={generate}
-            disabled={loadingReport}
-            className="mt-4 w-full py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50"
-          >
-            {loadingReport ? 'Writing…' : 'View Report'}
-          </button>
+        {/* Weekly Performance / Report Card */}
+        <section className="bg-card border rounded-[2rem] p-8 shadow-sm flex flex-col min-h-[380px]">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-muted/30 rounded-xl">
+              <DocumentIcon />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold leading-none">Weekly Performance</h2>
+              <p className="text-base text-muted-foreground mt-1.5">Last week's summary</p>
+            </div>
+          </div>
+
+          <div className="bg-emerald-50/50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-2xl p-6 mt-auto">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-emerald-500 text-white rounded-lg p-1.5">
+                <DocumentIcon />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground">Report available</h3>
+            </div>
+            <p className="text-base text-muted-foreground mb-6">Sep 28 – Oct 4</p>
+            
+            <button
+              onClick={generate}
+              disabled={loadingReport}
+              className="bg-slate-900 hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white text-base font-medium py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 w-full sm:w-auto"
+            >
+              {loadingReport ? 'Writing…' : 'View Report'}
+              <span className="text-xl leading-none">›</span>
+            </button>
+          </div>
         </section>
       </div>
 
       {report && (
-        <section className="bg-card border rounded-xl p-5">
-          <header className="flex items-center justify-between">
-            <h2 className="font-medium">Report</h2>
-            <span className="text-xs text-muted-foreground">
-              {report.report.period_start} → {report.report.period_end} · {report.report.performance_percentage}% · {report.report.performance_status}
-            </span>
+        <section className="bg-card border rounded-[2rem] p-8 shadow-sm animate-in fade-in slide-in-from-bottom-4">
+          <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5 mb-5">
+            <h2 className="text-xl font-semibold">Performance Report</h2>
+            <div className="flex items-center gap-3 text-base text-muted-foreground">
+              <span className="bg-muted px-3 py-1.5 rounded-lg">{report.report.period_start} → {report.report.period_end}</span>
+              <span>•</span>
+              <span className="font-medium">{report.report.performance_percentage}%</span>
+              <span>•</span>
+              <span className="capitalize">{report.report.performance_status}</span>
+            </div>
           </header>
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap">{report.report.content}</p>
+          <p className="text-base leading-relaxed whitespace-pre-wrap text-muted-foreground">
+            {report.report.content}
+          </p>
         </section>
       )}
-    </div>
-  )
-}
-
-function Stat({ n, label }) {
-  return (
-    <div className="flex flex-col items-center">
-      <span className="text-base font-semibold tabular-nums">{n}</span>
-      <span className="text-muted-foreground">{label}</span>
     </div>
   )
 }
