@@ -169,6 +169,12 @@ export default function Home({ user }) {
     return acc
   }, {})
 
+  // Tasks dated after the current week are kept in the DB; show them here so
+  // AI/user-created future tasks are never silently hidden.
+  const upcoming = tasks
+    .filter((t) => t.date > weekDates[6])
+    .sort((a, b) => a.date.localeCompare(b.date))
+
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 p-4">
       {/* Header */}
@@ -263,6 +269,35 @@ export default function Home({ user }) {
           )
         })}
       </div>
+
+      {/* Upcoming tasks beyond the current week */}
+      {upcoming.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-base font-medium">Upcoming</h2>
+            <span className="text-xs text-muted-foreground">Beyond this week</span>
+          </div>
+          <div className="divide-y divide-border">
+            {upcoming.map((t) => (
+              <div key={t.id} className="py-2 flex items-center justify-between text-sm">
+                <div className="flex items-center gap-3">
+                  <span className={t.completed ? 'line-through text-muted-foreground' : ''}>
+                    {t.task_name}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{t.date}</span>
+                </div>
+                <span
+                  className={`text-[11px] px-2 py-0.5 rounded-full ${
+                    t.completed ? 'bg-success/15 text-success' : 'bg-muted/20 text-muted-foreground'
+                  }`}
+                >
+                  {t.completed ? 'Completed' : 'Pending'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer Add Task Section */}
       <footer className="bg-card border border-border rounded-xl p-4">

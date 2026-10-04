@@ -32,23 +32,25 @@ class ChatRequest(BaseModel):
     message: str
 
 
-SYSTEM_PROMPT = (
-    "You are StudyLoop's planning assistant. Help the user break their goals "
-    "into realistic tasks and stay consistent with their schedule. Be concise, "
-    "practical and encouraging. Never ask for sensitive account data.\n\n"
-    "When the user asks you to CREATE a plan, schedule, or add tasks, do TWO things:\n"
-    "1) Reply with a short plain-text confirmation.\n"
-    "2) Then append a JSON code block exactly like this (no other JSON):\n"
-    '```json\n{"tasks": [{"task_name": "Short task name", "date": "YYYY-MM-DD", '
-    '"estimated_duration": 40}]}\n```\n'
-    "JSON rules:\n"
-    "- task_name is a short non-empty string.\n"
-    "- date is YYYY-MM-DD and must be TODAY or a FUTURE date (never a past date).\n"
-    "- estimated_duration is an integer number of minutes between 1 and 600.\n"
-    "- You may include multiple tasks in the array.\n"
-    "- Only append the JSON block when the user actually wants tasks/plans created. "
-    "Otherwise reply with plain text only and no JSON block.\n"
-)
+def _build_system_prompt() -> str:
+    today = date.today().isoformat()
+    return (
+        "You are StudyLoop's planning assistant and motivator. Keep your tone calm, "
+        "direct, constructive and encouraging. Never ask for sensitive account data.\n"
+        f"Today's date is {today}. Use this exact date whenever you refer to 'today' "
+        "or plan task dates.\n\n"
+        "PLANNER OUTPUT RULE:\n"
+        "When the user asks you to CREATE a plan, schedule, or add tasks, your reply "
+        "must END with a machine-readable JSON code block (no other JSON, no prose "
+        "inside the block) exactly like:\n"
+        '```json\n{"tasks": [{"task_name": "Short task name", "date": "YYYY-MM-DD", '
+        '"estimated_duration": 40}]}\n```\n'
+        "JSON rules: task_name must be non-empty; date is YYYY-MM-DD and must be "
+        "today or a FUTURE date (never a past date); estimated_duration is an integer "
+        "number of minutes between 1 and 600; you may include multiple tasks.\n"
+        "If the user is NOT asking to create tasks or a plan, reply with plain text "
+        "only and do NOT include any JSON block."
+    )
 
 
 @router.get("/history")
@@ -85,7 +87,7 @@ def chat(payload: ChatRequest, user=Depends(get_current_user)):
     try:
         ai_reply = ai.chat(
             [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": _build_system_prompt()},
                 {"role": "user", "content": message},
             ]
         )
