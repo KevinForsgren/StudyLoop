@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
 import { api } from '../api'
 
-// Coerce arbitrary API values into a flat string so ReactMarkdown (which
-// strictly requires a single string child) and React children never crash.
+// Coerce arbitrary API values into a flat string so React children never crash.
+// (AI output is rendered as plain, pre-wrapped text.)
 function toText(value) {
   if (typeof value === 'string') return value
   if (value === null || value === undefined) return ''
@@ -90,7 +89,7 @@ export default function Chat() {
   }
 
   function loadHistory(m) {
-    // Add fallback empty strings to prevent ReactMarkdown from receiving undefined
+    // Normalize history content to strings before rendering.
     setMessages([
       { role: 'user', content: toText(m.message) },
       { role: 'assistant', content: toText(m.response) },
@@ -98,7 +97,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="w-[calc(100vw-15rem)] relative left-1/2 -translate-x-1/2 flex gap-6 px-6 h-[calc(100vh-9rem)] min-h-[500px]">
+    <div className="w-[calc(100vw-15rem)] relative left-1/2 -translate-x-1/2 flex gap-6 px-6 h-[calc(100vh-9rem)] min-h-125">
       
       {/* MAIN CHAT AREA */}
       <div className="flex-1 flex flex-col bg-card border border-border rounded-xl overflow-hidden">
@@ -124,13 +123,7 @@ export default function Chat() {
                   : 'bg-secondary text-secondary-foreground self-start rounded-tl-sm shadow-sm border border-border/50'
               }`}
             >
-              {m.role === 'assistant' ? (
-                <ReactMarkdown className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-pre:bg-background prose-pre:border prose-pre:border-border max-w-none break-words">
-                  {toText(m.content)}
-                </ReactMarkdown>
-              ) : (
-                <div className="whitespace-pre-wrap">{toText(m.content)}</div>
-              )}
+              <div className="whitespace-pre-wrap">{toText(m.content)}</div>
             </div>
           ))}
           {busy && (

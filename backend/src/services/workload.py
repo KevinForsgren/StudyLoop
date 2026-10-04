@@ -1,41 +1,39 @@
 #!/usr/bin/env python3
 """
-Workload enforcement rules.
+Planner enforcement rules.
 
-The backend enforces a minimum and maximum daily planned workload so that an
-AI-generated (or manually entered) schedule always keeps the user progressing
-toward their goals without becoming unachievable.
+* A plan (task) can only be created for today or a future date.
+* A single day's total planned work cannot exceed the maximum (10 hours).
+  There is no minimum — users may add small plans of any size.
 """
 
 from datetime import date
-from typing import List, Optional
+from typing import List
 
-# Backend-enforced daily limits (in minutes).
-MIN_WORKLOAD_MINUTES = 90     # 1 hour 30 minutes per day
+# Backend-enforced daily maximum (in minutes).
 MAX_WORKLOAD_MINUTES = 600    # 10 hours per day
 
 
-def check_within_limits(
-    current_total: int,
-    additional: int = 0,
-    enforce_min: bool = False,
-) -> int:
+def ensure_future_or_today(task_date: date) -> None:
+    """Reject dates in the past (plans are only for today or future days)."""
+    if task_date < date.today():
+        raise ValueError(
+            f"Cannot schedule a plan for a past date ({task_date.isoformat()}). "
+            "Plans can only be created for today or future days."
+        )
+
+
+def check_within_limits(current_total: int, additional: int = 0) -> int:
     """Return the new daily total after adding ``additional`` minutes.
 
     Raises ``ValueError`` when the resulting daily workload exceeds the
-    guaranteed maximum, or (when ``enforce_min`` is set) falls below the
-    guaranteed minimum.
+    guaranteed maximum (10 hours).
     """
     new_total = current_total + additional
     if new_total > MAX_WORKLOAD_MINUTES:
         raise ValueError(
             f"Daily workload would be {new_total} minutes, exceeding the "
             f"maximum of {MAX_WORKLOAD_MINUTES} minutes (10 hours)."
-        )
-    if enforce_min and new_total < MIN_WORKLOAD_MINUTES:
-        raise ValueError(
-            f"Daily workload is {new_total} minutes, below the minimum of "
-            f"{MIN_WORKLOAD_MINUTES} minutes (1 hour 30 minutes)."
         )
     return new_total
 
@@ -46,26 +44,25 @@ def _parse_date(value) -> date:
     return date.fromisoformat(str(value))
 
 
-def validate_plan_payload(data) -> dict:
-    """Validate a proposed AI/manual plan structure.
+def validate_tasks(data) -> List[dict]:
+    """Validate a proposed (AI) list of tasks.
 
-    Ensures the payload contains a title and a list of tasks where every task
-    has a name, a valid date and a positive estimated duration, and that no
-    single day's total planned work exceeds the enforced limits.
+    Accepts either a bare list of task dicts or an object of the shape
+    ``{"tasks": [...]}``. Every task must have a name, a valid date that is not
+    in the past, and a positive estimated duration, and no single day's total
+    planned work may exceed the enforced maximum.
 
-    Returns the validated plan dict (durations coerced to int). Raises
-    ``ValueError`` with a human-readable message otherwise.
+    Returns a list of validated/normalized task dicts (durations as int, dates
+    as real ``date`` objects). Raises ``ValueError`` otherwise.
     """
-    if not isinstance(data, dict):
-        raise ValueError("Plan must be a JSON object.")
-    title = data.get("title")
-    tasks = data.get("tasks")
-    if not title or not str(title).strip():
-        raise ValueError("Plan is missing a title.")
+    if isinstance(data, dict):
+        tasks = data.get("tasks", [])
+    else:
+        tasks = data
     if not isinstance(tasks, list):
-        raise ValueError("Plan is missing a 'tasks' list.")
+        raise ValueError("Expected a list of tasks.")
 
-    normalized = {"title": str(title).strip(), "tasks": []}
+    normalized: List[dict] = []
     day_totals: dict = {}
 
     for idx, task in enumerate(tasks):
@@ -82,6 +79,7 @@ def validate_plan_payload(data) -> dict:
             task_date = _parse_date(raw_date)
         except (TypeError, ValueError):
             raise ValueError(f"Task '{task_name}' has an invalid date '{raw_date}'.")
+        ensure_future_or_today(task_date)
 
         raw_duration = task.get("estimated_duration") or task.get("duration")
         try:
@@ -94,11 +92,9 @@ def validate_plan_payload(data) -> dict:
             )
 
         day_totals.setdefault(task_date, 0)
-        day_totals[task_date] = check_within_limits(
-            day_totals[task_date], duration, enforce_min=False
-        )
+        day_totals[task_date] = check_within_limits(day_totals[task_date], duration)
 
-        normalized["tasks"].append(
+        normalized.append(
             {
                 "task_name": str(task_name).strip(),
                 "date": task_date,

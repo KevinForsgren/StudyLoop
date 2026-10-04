@@ -1,8 +1,5 @@
 @import "tailwindcss";
 
-/* Tailwind plugins (v4 @plugin API) */
-@plugin "@tailwindcss/typography";
-
 /* Class-based dark mode: the app puts .dark on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 

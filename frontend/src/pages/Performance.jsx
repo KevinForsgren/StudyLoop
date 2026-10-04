@@ -242,7 +242,7 @@ export default function Performance() {
           <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5 mb-5">
             <h2 className="text-xl font-semibold">Performance Report</h2>
             <div className="flex items-center gap-3 text-base text-muted-foreground">
-              <span className="bg-muted px-3 py-1.5 rounded-lg">{report.report.period_start} → {report.report.period_end}</span>
+              <span className="bg-card px-3 py-1.5 rounded-lg">{report.report.period_start} → {report.report.period_end}</span>
               <span>•</span>
               <span className="font-medium">{report.report.performance_percentage}%</span>
               <span>•</span>

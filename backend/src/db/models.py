@@ -27,37 +27,18 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     
     # Relationships
-    plans = relationship("Plan", back_populates="user")
     tasks = relationship("Task", back_populates="user")
     reports = relationship("Report", back_populates="user")
     chats = relationship("Chat", back_populates="user")
     
     def __repr__(self):
         return f"<User(id={self.id}, username={self.username})>"
-class Plan(Base):
-    """Plan model for user's scheduled tasks."""
-    
-    __tablename__ = "plans"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    title = Column(String, nullable=False)
-    goal_information = Column(Text, nullable=True)  # Optional goal details
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    user = relationship("User", back_populates="plans")
-    tasks = relationship("Task", back_populates="plan")
-    
-    def __repr__(self):
-        return f"<Plan(id={self.id}, user_id={self.user_id}, title={self.title})>"
 class Task(Base):
-    """Task/Sub-todo model for individual work items."""
+    """Task/To-do model for a single planned work item."""
     
     __tablename__ = "tasks"
     
     id = Column(Integer, primary_key=True, index=True)
-    plan_id = Column(Integer, ForeignKey("plans.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     task_name = Column(String, nullable=False)
     date = Column(Date, nullable=False)
@@ -66,11 +47,10 @@ class Task(Base):
     completed_at = Column(DateTime, nullable=True)
     
     # Relationships
-    plan = relationship("Plan", back_populates="tasks")
     user = relationship("User", back_populates="tasks")
     
     def __repr__(self):
-        return f"<Task(id={self.id}, plan_id={self.plan_id}, task_name={self.task_name}, completed={self.completed})>"
+        return f"<Task(id={self.id}, user_id={self.user_id}, task_name={self.task_name}, date={self.date}, completed={self.completed})>"
 class Report(Base):
     """Report model for storing performance summaries."""
     

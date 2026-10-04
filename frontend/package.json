@@ -12,12 +12,10 @@
     "lucide-react": "^1.52.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-markdown": "^10.0.0",
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
-    "@tailwindcss/typography": "^0.5.16",
     "@vitejs/plugin-react": "^6.1.1",
     "postcss": "^8.5.0",
     "tailwindcss": "^4.3.3",

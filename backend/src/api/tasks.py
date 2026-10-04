@@ -2,14 +2,19 @@
 """
 Tasks API endpoints.
 
-Every task belongs to a user and (per the schema) to a plan. All reads and
-writes are scoped to the authenticated user so a user can never touch another
-user's tasks.
+A task is the single planner entity. Every task belongs to a user and carries
+its own date, duration and completion state. The backend enforces the planner
+rules:
+
+* Plans (tasks) can only be created for today or a future date.
+* Completion status can only be changed on a task scheduled for today.
+* A single day's total planned work cannot exceed the daily maximum.
 """
 
 import sys
+import datetime as dt
 from datetime import date, datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
 
@@ -20,7 +25,12 @@ from sqlalchemy import text
 from api.auth import get_current_user
 from db.models import BaseService
 from db.session import db
-from services.workload import check_within_limits
+from services import ai
+from services.workload import (
+    check_within_limits,
+    ensure_future_or_today,
+    validate_tasks,
+)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 service = BaseService(db.get_session())
@@ -35,21 +45,32 @@ def _task_to_dict(row):
     data = _to_dict(row)
     if "completed" in data:
         data["completed"] = bool(data["completed"])
+    # Raw text() queries return the date column as a string; normalise it to a
+    # real ``date`` so comparisons like ``task["date"] == date.today()`` work.
+    raw_date = data.get("date")
+    if raw_date and not isinstance(raw_date, date):
+        data["date"] = date.fromisoformat(str(raw_date))
     return data
 
 
 class TaskCreate(BaseModel):
-    plan_id: int
     task_name: str
-    date: date
+    # Module-qualified type: pydantic 2.13.x on Python 3.14 mis-resolves a
+    # field named ``date`` when annotated with the bare ``date`` class + None
+    # default (``Optional[date]`` collapses to ``None``-only).
+    date: dt.date
     estimated_duration: Optional[int] = None
 
 
 class TaskUpdate(BaseModel):
     task_name: Optional[str] = None
-    date: Optional[date] = None
+    date: Optional[dt.date] = None
     estimated_duration: Optional[int] = None
     completed: Optional[bool] = None
+
+
+class TaskGenerate(BaseModel):
+    goal: str
 
 
 def _get_owned_task(user_id: int, task_id: int) -> dict:
@@ -96,14 +117,13 @@ def get_tasks(user=Depends(get_current_user)):
 
 @router.post("/")
 def create_task(payload: TaskCreate, user=Depends(get_current_user)):
-    """Create a task under one of the user's plans, enforcing workload limits."""
+    """Create a task for today/a future day, enforcing workload limits."""
     user_id = _to_dict(user)["id"]
-    plan = service.fetchone(
-        "SELECT id FROM plans WHERE id = :id AND user_id = :uid",
-        {"id": payload.plan_id, "uid": user_id},
-    )
-    if plan is None:
-        raise HTTPException(status_code=404, detail="Plan not found")
+
+    try:
+        ensure_future_or_today(payload.date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     duration = payload.estimated_duration or 0
     try:
@@ -112,11 +132,9 @@ def create_task(payload: TaskCreate, user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail=str(exc))
 
     service.execute(
-        "INSERT INTO tasks "
-        "(plan_id, user_id, task_name, date, estimated_duration, completed) "
-        "VALUES (:plan_id, :user_id, :task_name, :date, :estimated_duration, 0)",
+        "INSERT INTO tasks (user_id, task_name, date, estimated_duration, completed) "
+        "VALUES (:user_id, :task_name, :date, :estimated_duration, 0)",
         {
-            "plan_id": payload.plan_id,
             "user_id": user_id,
             "task_name": payload.task_name,
             "date": payload.date,
@@ -128,6 +146,33 @@ def create_task(payload: TaskCreate, user=Depends(get_current_user)):
     return {"task": task}
 
 
+@router.post("/generate")
+def generate_tasks(payload: TaskGenerate, user=Depends(get_current_user)):
+    """Ask the AI to propose tasks for a goal.
+
+    The returned list is validated (today/future dates, per-day limit) but NOT
+    stored — the frontend shows it to the user, who confirms by creating the
+    tasks.
+    """
+    try:
+        proposal = ai.generate_tasks(payload.goal)
+        validated = validate_tasks(proposal)
+    except ai.AIUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ai.AIValidationError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    proposed = [
+        {
+            "task_name": t["task_name"],
+            "date": t["date"].isoformat(),
+            "estimated_duration": t["estimated_duration"],
+        }
+        for t in validated
+    ]
+    return {"tasks": proposed}
+
+
 @router.get("/{task_id}")
 def get_task(task_id: int, user=Depends(get_current_user)):
     """Get a single task owned by the user."""
@@ -137,7 +182,7 @@ def get_task(task_id: int, user=Depends(get_current_user)):
 
 @router.patch("/{task_id}")
 def update_task(task_id: int, payload: TaskUpdate, user=Depends(get_current_user)):
-    """Update task fields, re-enforcing workload limits when they change."""
+    """Update task fields, re-enforcing planner date/completion rules."""
     user_id = _to_dict(user)["id"]
     task = _get_owned_task(user_id, task_id)
 
@@ -146,6 +191,17 @@ def update_task(task_id: int, payload: TaskUpdate, user=Depends(get_current_user
         return {"task": task}
 
     new_date = fields.get("date", task["date"])
+
+    try:
+        ensure_future_or_today(new_date)
+        # Completion can only change on the task's scheduled day (today).
+        if "completed" in fields and new_date != date.today():
+            raise ValueError(
+                "You can only change completion status for a task scheduled today."
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     new_duration = fields.get("estimated_duration", task["estimated_duration"]) or 0
     try:
         check_within_limits(
@@ -180,9 +236,14 @@ def delete_task(task_id: int, user=Depends(get_current_user)):
 
 @router.post("/{task_id}/complete")
 def complete_task(task_id: int, user=Depends(get_current_user)):
-    """Mark a task as completed (with timestamp) if owned by the user."""
+    """Mark a task complete, but only if it is scheduled for today."""
     user_id = _to_dict(user)["id"]
     task = _get_owned_task(user_id, task_id)
+    if task["date"] != date.today():
+        raise HTTPException(
+            status_code=400,
+            detail="You can only mark a task complete on the day it is scheduled (today).",
+        )
     if not task["completed"]:
         service.execute(
             "UPDATE tasks SET completed = 1, completed_at = :ts "

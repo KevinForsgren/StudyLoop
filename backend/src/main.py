@@ -15,7 +15,6 @@ sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
 
 from api.auth import router as auth_router
 from api.tasks import router as tasks_router
-from api.plans import router as plans_router
 from api.performance import router as performance_router
 from api.chat import router as chat_router
 from config.settings import get_settings
@@ -52,7 +51,6 @@ app.add_middleware(
 # Include API routers
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(tasks_router, prefix="/api/tasks", tags=["Tasks"])
-app.include_router(plans_router, prefix="/api/plans", tags=["Plans"])
 app.include_router(performance_router, prefix="/api/performance", tags=["Performance"])
 app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
 

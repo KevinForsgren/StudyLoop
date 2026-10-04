@@ -76,9 +76,8 @@ export const api = {
   completeTask: (id, signal) => request('POST', `/tasks/${id}/complete`, undefined, { signal }),
   updateTask: (id, b) => request('PATCH', `/tasks/${id}`, b),
   deleteTask: (id) => request('DELETE', `/tasks/${id}`),
-
-  createPlan: (b) => request('POST', '/plans/', b),
-  generatePlan: (goal, signal) => request('POST', '/plans/generate', { goal }, { signal }),
+  generateTasks: (goal, signal) =>
+    request('POST', '/tasks/generate', { goal }, { signal }),
 
   performance: (days, signal) =>
     request('GET', `/performance/?days=${days || 7}`, undefined, { signal }),
