@@ -3,8 +3,10 @@
 Performance API endpoints.
 
 The backend computes all objective statistics (completion %, consistency graph,
-totals). The AI only writes the interpretation for a report, and the endpoint
-degrades gracefully to a computed summary when the AI is unavailable.
+totals). A performance *report* is a weekly artifact: a user may have at most
+one report per calendar week (Monday-Sunday). Requests always target the
+previous completed calendar week, so repeated generation requests for the same
+week return the existing report instead of duplicating it.
 """
 
 import sys
@@ -13,8 +15,7 @@ from typing import Optional
 
 sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 
 from api.auth import get_current_user
@@ -41,6 +42,14 @@ def _period(days: int):
     return end - timedelta(days=days - 1), end
 
 
+def _previous_week(today=None):
+    """Return (monday, sunday) of the previous completed calendar week."""
+    today = today or date.today()
+    this_monday = today - timedelta(days=today.weekday())
+    prev_monday = this_monday - timedelta(days=7)
+    return prev_monday, prev_monday + timedelta(days=6)
+
+
 def _user_tasks(user_id: int, start: date, end: date) -> list:
     rows = service.fetchall(
         "SELECT date, completed, estimated_duration FROM tasks "
@@ -50,15 +59,48 @@ def _user_tasks(user_id: int, start: date, end: date) -> list:
     return [_to_dict(r) for r in rows]
 
 
+def _report_dict(row) -> dict:
+    d = _to_dict(row)
+    return {
+        "id": d["id"],
+        "period_start": str(d["period_start"]),
+        "period_end": str(d["period_end"]),
+        "performance_percentage": float(d["performance_percentage"]),
+        "performance_status": d["performance_status"],
+        "content": d["content"],
+    }
+
+
+def _find_week_report(user_id: int, monday: date):
+    return service.fetchone(
+        "SELECT * FROM reports WHERE user_id = :uid AND period_start = :ps "
+        "ORDER BY id DESC LIMIT 1",
+        {"uid": user_id, "ps": monday},
+    )
+
+
 @router.get("/")
-def get_performance(days: int = 7, user=Depends(get_current_user)):
+def get_performance(
+    days: int = 7,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
+    user=Depends(get_current_user),
+):
     """Return the user's performance stats + consistency graph for a period."""
     user_id = _to_dict(user)["id"]
-    start, end = _period(days)
-    stats = compute_period_stats(_user_tasks(user_id, start, end), start, end)
+    if start and end:
+        period_start, period_end = start, end
+    else:
+        period_start, period_end = _period(days)
+
+    stats = compute_period_stats(
+        _user_tasks(user_id, period_start, period_end), period_start, period_end
+    )
 
     # Compare against the previous period to derive a trend for the UI.
-    prev_start, prev_end = start - timedelta(days=days), start - timedelta(days=1)
+    width = (period_end - period_start).days + 1
+    prev_start = period_start - timedelta(days=width)
+    prev_end = period_start - timedelta(days=1)
     prev_stats = compute_period_stats(
         _user_tasks(user_id, prev_start, prev_end), prev_start, prev_end
     )
@@ -67,40 +109,50 @@ def get_performance(days: int = 7, user=Depends(get_current_user)):
     )
 
     return {
-        "period_start": start.isoformat(),
-        "period_end": end.isoformat(),
+        "period_start": period_start.isoformat(),
+        "period_end": period_end.isoformat(),
         "performance_status": status,
         **stats,
     }
 
 
-class ReportOptions(BaseModel):
-    days: int = 7
-    period_start: Optional[date] = None
-    period_end: Optional[date] = None
+@router.get("/report")
+def get_report(user=Depends(get_current_user)):
+    """Return the existing report for the previous completed week, if any."""
+    user_id = _to_dict(user)["id"]
+    monday, sunday = _previous_week()
+    row = _find_week_report(user_id, monday)
+    return {
+        "report": _report_dict(row) if row else None,
+        "period_start": monday.isoformat(),
+        "period_end": sunday.isoformat(),
+    }
 
 
 @router.post("/report")
-def generate_report(options: ReportOptions = None, user=Depends(get_current_user)):
-    """Generate and persist a performance report for the current period."""
+def generate_report(user=Depends(get_current_user)):
+    """Return the previous week's report, generating it if it does not exist.
+
+    A user may have at most one report per calendar week: if one already exists
+    it is returned instead of creating a duplicate. Nothing is persisted unless
+    report content was successfully produced.
+    """
     user_id = _to_dict(user)["id"]
-    opts = options or ReportOptions()
-    days = opts.days
+    monday, sunday = _previous_week()
 
-    if opts.period_start and opts.period_end:
-        start, end = opts.period_start, opts.period_end
-    else:
-        start, end = _period(days)
+    existing = _find_week_report(user_id, monday)
+    if existing:
+        return {"report": _report_dict(existing), "created": False}
 
-    stats = compute_period_stats(_user_tasks(user_id, start, end), start, end)
+    stats = compute_period_stats(_user_tasks(user_id, monday, sunday), monday, sunday)
 
-    prev_start = start - timedelta(days=days)
-    prev_end = start - timedelta(days=1)
-    prev_stats = compute_period_stats(
-        _user_tasks(user_id, prev_start, prev_end), prev_start, prev_end
+    # status: compare the target week against the week before it.
+    before_start, before_end = monday - timedelta(days=7), monday - timedelta(days=1)
+    before_stats = compute_period_stats(
+        _user_tasks(user_id, before_start, before_end), before_start, before_end
     )
     status = performance_status(
-        stats["completion_percentage"], prev_stats["completion_percentage"]
+        stats["completion_percentage"], before_stats["completion_percentage"]
     )
 
     # AI interpretation with a graceful fallback when the model is unavailable.
@@ -108,6 +160,9 @@ def generate_report(options: ReportOptions = None, user=Depends(get_current_user
         summary = ai.generate_report_summary(stats, status).strip()
     except (ai.AIUnavailableError, ai.AIValidationError):
         summary = fallback_summary(stats)
+
+    if not summary:
+        raise HTTPException(status_code=502, detail="Failed to generate report content.")
 
     service.execute(
         "INSERT INTO reports "
@@ -117,8 +172,8 @@ def generate_report(options: ReportOptions = None, user=Depends(get_current_user
         {
             "uid": user_id,
             "day": date.today(),
-            "start": start,
-            "end": end,
+            "start": monday,
+            "end": sunday,
             "pct": stats["completion_percentage"],
             "status": status,
             "content": summary,
@@ -126,15 +181,5 @@ def generate_report(options: ReportOptions = None, user=Depends(get_current_user
     )
     service.commit()
     report_id = service.scalar(text("SELECT last_insert_rowid()"))
-
-    return {
-        "report": {
-            "id": report_id,
-            "period_start": start.isoformat(),
-            "period_end": end.isoformat(),
-            "performance_percentage": stats["completion_percentage"],
-            "performance_status": status,
-            "content": summary,
-        },
-        "stats": stats,
-    }
+    row = service.fetchone("SELECT * FROM reports WHERE id = :id", {"id": report_id})
+    return {"report": _report_dict(row), "stats": stats, "created": True}

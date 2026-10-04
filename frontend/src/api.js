@@ -81,8 +81,10 @@ export const api = {
 
   performance: (days, signal) =>
     request('GET', `/performance/?days=${days || 7}`, undefined, { signal }),
-  generateReport: (b, signal) =>
-    request('POST', '/performance/report', b || { days: 7 }, { signal }),
+  performanceRange: (start, end, signal) =>
+    request('GET', `/performance/?start=${start}&end=${end}`, undefined, { signal }),
+  performanceReport: () => request('GET', '/performance/report'),
+  generateReport: () => request('POST', '/performance/report'),
 
   chat: (message, signal) =>
     request('POST', '/chat/', { message }, { signal }).then((data) => ({

@@ -57,7 +57,12 @@ def compute_period_stats(
 
     by_date: dict = {}
     for r in rows:
-        by_date.setdefault(r["date"], []).append(r)
+        # Raw text() rows expose ``date`` as a string; normalise to a real
+        # ``date`` so lookups against ``date_range`` (date objects) match.
+        d = r["date"]
+        if not isinstance(d, date):
+            d = date.fromisoformat(str(d))
+        by_date.setdefault(d, []).append(r)
 
     daily = []
     for day in date_range(start, end):
