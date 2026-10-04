@@ -16,6 +16,18 @@ PYTHON="${PYTHON:-$ROOT_DIR/.venv/bin/python}"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 
+# Ensure the Python virtual environment exists and is ready before starting.
+if [ ! -x "$ROOT_DIR/.venv/bin/python" ]; then
+  echo "[dev] Creating virtual environment with uv…"
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "[dev] ERROR: uv is required. Install it: https://docs.astral.sh/uv/"
+    exit 1
+  fi
+  (cd "$ROOT_DIR" && uv venv .venv) || exit 1
+  echo "[dev] Installing backend dependencies…"
+  (cd "$ROOT_DIR" && uv pip install --python "$ROOT_DIR/.venv/bin/python" -r backend/requirements.txt)
+fi
+
 BACKEND_PGID=""
 FRONTEND_PGID=""
 STOPPED=0

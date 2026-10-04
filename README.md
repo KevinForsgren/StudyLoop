@@ -29,30 +29,67 @@ at the repository root.
 
 ## Run everything (recommended)
 
-```bash
-./dev.sh        # starts backend + frontend together, Ctrl+C stops both
-```
+Each entry point creates the Python virtual environment (if missing) and then starts the backend and frontend together.
 
-See `dev.sh` for port/env overrides (`BACKEND_PORT`, `FRONTEND_PORT`, `PYTHON`).
+- **Linux / macOS:** `./dev.sh` — combined logs in one terminal, Ctrl+C stops both.
+- **Windows CMD:** `dev.bat`
+- **Windows PowerShell:** `dev.ps1` — opens a window for each service.
+
+`dev.sh` overrides: `BACKEND_PORT`, `FRONTEND_PORT`, `PYTHON`.
 
 ## Run the backend
 
+Linux / macOS:
 ```bash
 cd backend
 ../.venv/bin/python -m uvicorn src.main:app --reload
 # API + /docs at http://127.0.0.1:8000
 ```
 
-Verify: `../.venv/bin/python tests/test_auth_final.py`
+Windows (PowerShell, from the repo root):
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m uvicorn src.main:app --reload
+```
+
+Verify the backend: Linux `../.venv/bin/python tests/test_auth_final.py` · Windows `..\.venv\Scripts\python.exe tests\test_auth_final.py`
 
 ## Run the frontend
 
+Linux / macOS:
 ```bash
 cd frontend
 npm install
 npm run dev          # http://localhost:3000
 npm run build        # production build into frontend/dist
 ```
+
+Windows (PowerShell):
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+## AI model (Ollama + gemma3:4b)
+
+The app talks to a local Ollama server (`OLLAMA_BASE_URL` / `OLLAMA_MODEL` in `.env`, default model `gemma3:4b`).
+
+Install Ollama:
+- **Linux / macOS:**
+  ```bash
+  curl -fsSL https://ollama.com/install.sh | sh
+  ```
+- **Windows:** download from https://ollama.com/download (or `winget install Ollama.Ollama`) and run the installer.
+
+Pull the model the app uses:
+```bash
+ollama pull gemma3:4b
+```
+
+Start Ollama if it is not already running: `ollama serve`.
+
+The app degrades gracefully when the model is unavailable — chat returns a clear error and performance reports fall back to a computed summary.
 
 ## Testing
 
@@ -62,6 +99,9 @@ npm run build        # production build into frontend/dist
 ## Notes
 
 - Database: SQLite file lives at `backend/Database/studyloop.db` (see `DATABASE_URL`).
-- AI: uses a local Ollama server (`OLLAMA_BASE_URL`/`OLLAMA_MODEL`). If the
-  model is unavailable the app degrades gracefully (chat returns a clear error,
-  performance reports fall back to a computed summary).
+- Windows: the backend source currently hardcodes Linux-style absolute `sys.path`
+  entries, so a native-Windows run needs those paths adjusted in `backend/src`
+  (a backend change) or a WSL environment. The Windows entry points still handle
+  venv creation and launching the backend + frontend.
+- If PowerShell blocks scripts, run with:
+  `powershell -ExecutionPolicy Bypass -File dev.ps1`
