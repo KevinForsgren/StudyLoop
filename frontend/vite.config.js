@@ -8,5 +8,16 @@ export default defineConfig({
   envDir: '..',
   server: {
     port: 3000,
+    // Proxy API calls to the backend so authentication stays same-origin.
+    // The browser talks to :3000 and the HttpOnly session cookie (set by the
+    // backend, relayed through this proxy) works without CORS.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        // Keep the original Host so any backend redirect (e.g. trailing-slash)
+        // stays same-origin and the session cookie is preserved by the browser.
+        changeOrigin: false,
+      },
+    },
   },
 })

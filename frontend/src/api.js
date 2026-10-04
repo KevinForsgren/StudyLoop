@@ -1,41 +1,31 @@
 // Thin API client for the StudyLoop backend.
-// Reads the shared API base URL injected by Vite from the root .env.
+//
+// Authentication uses an HttpOnly session cookie set by the backend on login.
+// Requests are same-origin (the Vite dev server proxies /api -> the backend),
+// so the browser sends the cookie automatically — no token in localStorage.
+// Every request accepts an optional `AbortController` signal so a page can
+// cancel in-flight work when the user navigates away.
 
-const API_URL =
-  import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+const API_URL = import.meta.env.VITE_API_URL || '/api'
+const UNREACHABLE = 'Cannot reach the StudyLoop server. Is the backend running?'
 
-const TOKEN_KEY = 'studyloop_token'
-
-export function getToken() {
-  return localStorage.getItem(TOKEN_KEY)
-}
-
-export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-  else localStorage.removeItem(TOKEN_KEY)
-}
-
-export function isAuthenticated() {
-  return Boolean(getToken())
-}
-
-export async function request(method, path, body = undefined) {
-  const headers = { 'Content-Type': 'application/json' }
-  const token = getToken()
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  let response
+export async function request(method, path, body = undefined, { signal } = {}) {
+  let res
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    res = await fetch(`${API_URL}${path}`, {
       method,
-      headers,
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
     })
-  } catch {
-    throw new Error('Cannot reach the StudyLoop server. Is the backend running?')
+  } catch (err) {
+    // Re-throw aborts so pages can clean up; everything else is unreachable.
+    if (err && (err.name === 'AbortError' || err.message === 'canceled')) throw err
+    throw new Error(UNREACHABLE)
   }
 
-  const text = await response.text()
+  const text = await res.text()
   let data = null
   if (text) {
     try {
@@ -45,32 +35,38 @@ export async function request(method, path, body = undefined) {
     }
   }
 
-  if (!response.ok) {
+  if (!res.ok) {
     const detail =
-      (data && (data.detail || data.message)) ||
-      `Request failed with status ${response.status}`
-    throw new Error(detail)
+      (data && (data.detail || data.message)) || `Request failed (HTTP ${res.status})`
+    const err = new Error(detail)
+    err.status = res.status
+    if (res.status === 401) err.unauthorized = true
+    throw err
   }
   return data
 }
 
 export const api = {
-  register: (b) => request('POST', '/api/auth/register', b),
-  login: (b) => request('POST', '/api/auth/login', b),
-  changePassword: (b) => request('POST', '/api/auth/change-password', b),
+  register: (b) => request('POST', '/auth/register', b),
+  login: (b) => request('POST', '/auth/login', b),
+  me: (signal) => request('GET', '/auth/me', undefined, { signal }),
+  logout: () => request('POST', '/auth/logout'),
+  changePassword: (b) => request('POST', '/auth/change-password', b),
 
-  getTasks: () => request('GET', '/api/tasks'),
-  createTask: (b) => request('POST', '/api/tasks', b),
-  updateTask: (id, b) => request('PATCH', `/api/tasks/${id}`, b),
-  deleteTask: (id) => request('DELETE', `/api/tasks/${id}`),
-  completeTask: (id) => request('POST', `/api/tasks/${id}/complete`),
+  tasks: (signal) => request('GET', '/tasks/', undefined, { signal }),
+  createTask: (b) => request('POST', '/tasks/', b),
+  completeTask: (id, signal) => request('POST', `/tasks/${id}/complete`, undefined, { signal }),
+  updateTask: (id, b) => request('PATCH', `/tasks/${id}`, b),
+  deleteTask: (id) => request('DELETE', `/tasks/${id}`),
 
-  createPlan: (b) => request('POST', '/api/plans', b),
-  addTasks: (id, b) => request('POST', `/api/plans/${id}/add-tasks`, b),
-  generatePlan: (goal) => request('POST', '/api/plans/generate', { goal }),
+  createPlan: (b) => request('POST', '/plans/', b),
+  generatePlan: (goal, signal) => request('POST', '/plans/generate', { goal }, { signal }),
 
-  getPerformance: (days = 7) => request('GET', `/api/performance?days=${days}`),
-  generateReport: (b = { days: 7 }) => request('POST', '/api/performance/report', b),
+  performance: (days, signal) =>
+    request('GET', `/performance/?days=${days || 7}`, undefined, { signal }),
+  generateReport: (b, signal) =>
+    request('POST', '/performance/report', b || { days: 7 }, { signal }),
 
-  chat: (message) => request('POST', '/api/chat', { message }),
+  chat: (message, signal) => request('POST', '/chat/', { message }, { signal }),
+  chatHistory: (signal) => request('GET', '/chat/history', undefined, { signal }),
 }

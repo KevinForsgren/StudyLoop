@@ -1,44 +1,50 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import './styles.css'
-import { setToken, isAuthenticated } from './api'
-import Auth from './components/Auth'
-import Planner from './components/Planner'
-import Performance from './components/Performance'
-import Chat from './components/Chat'
-import Pomodoro from './components/Pomodoro'
+import { api } from './api'
+import Auth from './pages/Auth'
+import Home from './pages/Home'
+import Chat from './pages/Chat'
+import Performance from './pages/Performance'
+import Progress from './pages/Progress'
+import Timer from './pages/Timer'
+import Layout from './components/Layout'
 
 const THEME_KEY = 'studyloop_theme'
-
 function initialTheme() {
   return localStorage.getItem(THEME_KEY) || 'dark'
 }
-
 function applyTheme(theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark')
 }
 
-const NAV = [
-  { id: 'planner', label: 'Planner', icon: '☑' },
-  { id: 'performance', label: 'Performance', icon: '▤' },
-  { id: 'assistant', label: 'Assistant', icon: '✦' },
-  { id: 'timer', label: 'Focus timer', icon: '◷' },
-]
-
-const TITLES = {
-  planner: 'Planner',
-  performance: 'Performance',
-  assistant: 'Assistant',
-  timer: 'Focus timer',
+function Loading() {
+  return (
+    <div className="min-h-screen grid place-items-center">
+      <p className="text-muted-foreground text-sm">Loading…</p>
+    </div>
+  )
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(isAuthenticated())
-  const [view, setView] = useState('planner')
-  const [theme, setTheme] = useState(initialTheme())
-  const [notice, setNotice] = useState(null)
+  const [theme, setTheme] = useState(initialTheme)
+  const [user, setUser] = useState(null)
+  const [checking, setChecking] = useState(true)
+  const [startError, setStartError] = useState(null)
 
   applyTheme(theme)
+
+  // Restore any persisted session (HttpOnly cookie) on first load.
+  useEffect(() => {
+    api
+      .me()
+      .then((d) => setUser(d.user))
+      .catch((err) => {
+        if (!err.unauthorized) setStartError(err.message)
+      })
+      .finally(() => setChecking(false))
+  }, [])
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark'
@@ -46,82 +52,38 @@ export default function App() {
     localStorage.setItem(THEME_KEY, next)
   }
 
-  function logout() {
-    setToken(null)
-    setAuthed(false)
+  async function logout() {
+    try {
+      await api.logout()
+    } catch {
+      /* cookie cleared client-leaning; still drop the local session */
+    }
+    setUser(null)
   }
 
-  function flash(msg) {
-    setNotice(msg)
-    setTimeout(() => setNotice(null), 2600)
-  }
+  if (checking) return <Loading />
 
-  if (!authed) {
-    return <Auth onAuthed={() => setAuthed(true)} />
+  if (!user) {
+    return (
+      <BrowserRouter>
+        <Auth onAuthed={setUser} serverError={startError} />
+      </BrowserRouter>
+    )
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); setView('planner') }}
-            className="text-lg font-semibold tracking-tight"
-          >
-            StudyLoop
-          </a>
-          <nav className="flex gap-1" aria-label="Main navigation">
-            {NAV.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => setView(n.id)}
-                className={`px-3 py-1.5 rounded-md text-sm ${
-                  view === n.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {n.icon} {n.label}
-              </button>
-            ))}
-            <button
-              onClick={toggleTheme}
-              className="px-3 py-1.5 rounded-md text-sm text-muted-foreground"
-              aria-label="Toggle color theme"
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            >
-              {theme === 'dark' ? '☀' : '☾'}
-            </button>
-            <button
-              onClick={logout}
-              className="px-3 py-1.5 rounded-md text-sm text-muted-foreground"
-            >
-              Log out
-            </button>
-          </nav>
-        </div>
-      </header>
-
-      {notice && (
-        <div className="max-w-4xl mx-auto px-6">
-          <p className="text-sm text-success">{notice}</p>
-        </div>
-      )}
-
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        {view === 'planner' && <Planner notify={flash} />}
-        {view === 'performance' && <Performance />}
-        {view === 'assistant' && <Chat />}
-        {view === 'timer' && <Pomodoro />}
-      </main>
-
-      <footer className="max-w-4xl mx-auto px-6 py-6">
-        <p className="text-xs text-muted-foreground">
-          StudyLoop · consistency over intensity
-        </p>
-      </footer>
-    </div>
+    <BrowserRouter>
+      <Layout user={user} theme={theme} onToggleTheme={toggleTheme} onLogout={logout}>
+        <Routes>
+          <Route path="/" element={<Home user={user} />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/performance" element={<Performance />} />
+          <Route path="/progress" element={<Progress />} />
+          <Route path="/timer" element={<Timer />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </BrowserRouter>
   )
 }
 

@@ -5,19 +5,20 @@ Authentication API endpoints.
 
 import sys
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 # Import from src directory using absolute imports
 sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
 
+from config.settings import get_settings
 from db.session import db
 from db.models import User, BaseService
 from security.auth import security
 
 router = APIRouter()
 auth_service = BaseService(db.get_session())
+_settings = get_settings()
 
 # Pydantic models for request validation
 class RegisterRequest(BaseModel):
@@ -78,59 +79,73 @@ async def register(request: RegisterRequest):
     
     return {"message": "User registered successfully", "user": user_dict}
 @router.post("/login")
-async def login(request: LoginRequest):
-    """Login a user and return access token."""
-    
-    # Find user by username
+async def login(request: LoginRequest, response: Response):
+    """Login a user, return a token, and set a persistent HttpOnly cookie."""
     user = auth_service.fetchone(
         "SELECT * FROM users WHERE username = :username",
-        {"username": request.username}
+        {"username": request.username},
     )
-    
+
     if not user or not security.verify_password(
-        request.password, dict(user._asdict())["password_hash"] if hasattr(user, '_asdict') else user["password_hash"]
+        request.password,
+        dict(user._asdict())["password_hash"] if hasattr(user, '_asdict') else user["password_hash"],
     ):
-        raise HTTPException(
-            status_code=401,
-            detail="Incorrect username or password"
-        )
-    
-    # Create access token
-    access_token_expires = timedelta(minutes=30)
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    access_token_expires = timedelta(minutes=_settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         data={"sub": str(dict(user._asdict())["id"] if hasattr(user, '_asdict') else user["id"])},
-        expires_delta=access_token_expires
+        expires_delta=access_token_expires,
     )
-    
+
+    # Persistent HttpOnly session cookie so the browser restores the session
+    # across refreshes and reopens without exposing the token to JS.
+    response.set_cookie(
+        _settings.AUTH_COOKIE_NAME,
+        access_token,
+        httponly=True,
+        samesite="lax",
+        secure=_settings.COOKIE_SECURE,
+        max_age=int(access_token_expires.total_seconds()),
+        path="/",
+    )
+
     user_dict = dict(user._asdict()) if hasattr(user, '_asdict') else dict(user)
     user_dict.pop("password_hash", None)
-    
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user_dict
+        "user": user_dict,
     }
 
 
-bearer_scheme = HTTPBearer(auto_error=False)
+def _extract_token(request: Request) -> str:
+    """Read the JWT from the session cookie, falling back to the Authorization
+    header (used by API clients and tests)."""
+    token = request.cookies.get(_settings.AUTH_COOKIE_NAME)
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.lower().startswith("bearer "):
+            token = auth_header[7:].strip()
+    return token or ""
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-):
-    """Resolve the authenticated user from the Authorization bearer token.
+def get_current_user(request: Request):
+    """Resolve the authenticated user from the session cookie or bearer token.
 
     Used as a FastAPI dependency on user-specific routes. Raises 401 when the
     token is missing, invalid, expired, or references a non-existent user.
     """
-    if credentials is None:
+    token = _extract_token(request)
+    if not token:
         raise HTTPException(
             status_code=401,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    payload = security.verify_token(credentials.credentials)
+    payload = security.verify_token(token)
     if payload is None or "sub" not in payload:
         raise HTTPException(
             status_code=401,
@@ -149,6 +164,21 @@ def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
     return user
+
+
+@router.post("/logout")
+def logout(response: Response):
+    """Clear the session cookie so the user is logged out."""
+    response.delete_cookie(_settings.AUTH_COOKIE_NAME, path="/")
+    return {"message": "Logged out"}
+
+
+@router.get("/me")
+def me(user=Depends(get_current_user)):
+    """Return the authenticated user (used by the frontend to restore a session)."""
+    data = _to_dict(user)
+    data.pop("password_hash", None)
+    return {"user": data}
 
 
 @router.post("/change-password")

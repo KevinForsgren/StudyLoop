@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(default="your-secret-key-here-change-this-in-production", env="SECRET_KEY")
     ALGORITHM: str = Field(default="HS256", env="ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
+    # Cookie names/policies for HttpOnly session cookies. Secure=True is only
+    # correct behind HTTPS; local dev uses HTTP so it stays False by default.
+    AUTH_COOKIE_NAME: str = Field(default="studyloop_token", env="AUTH_COOKIE_NAME")
+    COOKIE_SECURE: bool = Field(default=False, env="COOKIE_SECURE")
     
     # CORS
     ALLOWED_ORIGINS: str = Field(default="http://localhost:3000", env="ALLOWED_ORIGINS")

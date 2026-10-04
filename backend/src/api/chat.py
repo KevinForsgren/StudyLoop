@@ -39,6 +39,29 @@ SYSTEM_PROMPT = (
 )
 
 
+@router.get("/history")
+def chat_history(user=Depends(get_current_user)):
+    """Return the user's recent chat exchanges (newest first)."""
+    user_id = _to_dict(user)["id"]
+    rows = service.fetchall(
+        "SELECT * FROM chats WHERE user_id = :uid ORDER BY id DESC LIMIT 50",
+        {"uid": user_id},
+    )
+    chats = []
+    for r in rows:
+        d = _to_dict(r)
+        chats.append(
+            {
+                "id": d["id"],
+                "message": d["message"],
+                "response": d["response"],
+                "date": str(d["date"]),
+                "time": d["time"],
+            }
+        )
+    return {"chats": chats}
+
+
 @router.post("/")
 def chat(payload: ChatRequest, user=Depends(get_current_user)):
     """Send a message to the AI and store the exchange for the user."""
