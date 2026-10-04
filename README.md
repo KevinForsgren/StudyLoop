@@ -27,6 +27,14 @@ at the repository root.
 - Frontend: `frontend/vite.config.js` sets `envDir: '..'`, so Vite loads the
   same root `.env` and exposes `VITE_*` variables at build time.
 
+## Run everything (recommended)
+
+```bash
+./dev.sh        # starts backend + frontend together, Ctrl+C stops both
+```
+
+See `dev.sh` for port/env overrides (`BACKEND_PORT`, `FRONTEND_PORT`, `PYTHON`).
+
 ## Run the backend
 
 ```bash
