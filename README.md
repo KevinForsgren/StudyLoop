@@ -61,7 +61,7 @@ npm run build        # production build into frontend/dist
 
 ## Notes
 
-- Database: SQLite file lives at `backend/studyloop.db` (see `DATABASE_URL`).
+- Database: SQLite file lives at `backend/Database/studyloop.db` (see `DATABASE_URL`).
 - AI: uses a local Ollama server (`OLLAMA_BASE_URL`/`OLLAMA_MODEL`). If the
   model is unavailable the app degrades gracefully (chat returns a clear error,
   performance reports fall back to a computed summary).

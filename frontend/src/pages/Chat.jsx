@@ -21,12 +21,85 @@ function toText(value) {
   return String(value)
 }
 
+// When the AI decides to make a plan it returns a fenced ```json block of
+// {tasks:[{task_name,date,estimated_duration}]}. Split it off so the user only
+// sees the natural-language reply, and return the collected plan task arrays.
+function extractPlans(text) {
+  const raw = toText(text)
+  const taskSets = []
+  let visible = raw.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, (m, inner) => {
+    try {
+      const obj = JSON.parse(inner)
+      if (obj && Array.isArray(obj.tasks)) taskSets.push(obj.tasks)
+      else if (obj && typeof obj === 'object') taskSets.push([obj])
+    } catch {
+      // malformed JSON -> drop the block, don't crash
+    }
+    return ''
+  })
+
+  // Edge case: the whole response is a bare {tasks:[...]} JSON object.
+  const trimmed = raw.trim()
+  try {
+    const obj = JSON.parse(trimmed)
+    if (obj && Array.isArray(obj.tasks)) {
+      taskSets.push(obj.tasks)
+      visible = ''
+    }
+  } catch {
+    /* not a bare JSON document */
+  }
+  return { visible: visible.trim(), taskSets }
+}
+
+// Accept only well-formed plan items (non-empty name + a date). Durations
+// default to 30 min. Arbitrary natural-language text is ignored.
+function normalizePlanTask(t) {
+  if (!t || typeof t !== 'object') return null
+  const name = String(t.task_name || t.name || '').trim()
+  const date = String(t.date || '').trim()
+  if (!name || !date) return null
+  let dur = Number(t.estimated_duration ?? t.duration ?? 30)
+  if (!Number.isFinite(dur) || dur <= 0) dur = 30
+  return { task_name: name, date, estimated_duration: Math.floor(dur) }
+}
+
+// Create every plan task via the existing task API. The backend rejects past
+// dates and over-limit durations, so those count as failed (skipped).
+async function persistTasks(sets) {
+  const seen = new Set()
+  const tasks = []
+  for (const set of sets) {
+    for (const t of set || []) {
+      const n = normalizePlanTask(t)
+      if (!n) continue
+      const key = `${n.task_name}|${n.date}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      tasks.push(n)
+    }
+  }
+  let created = 0
+  let failed = 0
+  for (const t of tasks) {
+    try {
+      const r = await api.createTask(t)
+      if (r && r.task) created++
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err
+      failed++
+    }
+  }
+  return { created, failed }
+}
+
 export default function Chat() {
   const [messages, setMessages] = useState([])
   const [history, setHistory] = useState([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [notice, setNotice] = useState(null)
   const active = useRef(null)
   const endRef = useRef(null)
 
@@ -56,6 +129,7 @@ export default function Chat() {
     setInput('')
     setBusy(true)
     setError(null)
+    setNotice(null)
     
     const c = new AbortController()
     if (active.current) active.current.abort()
@@ -63,7 +137,27 @@ export default function Chat() {
     
     try {
       const res = await api.chat(text, c.signal)
-      setMessages((m) => [...m, { role: 'assistant', content: toText(res.response) }])
+      const reply = toText(res.response)
+      const { visible, taskSets } = extractPlans(reply)
+      if (visible) {
+        setMessages((m) => [...m, { role: 'assistant', content: visible }])
+      }
+      if (taskSets.length) {
+        try {
+          const { created, failed } = await persistTasks(taskSets)
+          if (created > 0) {
+            setNotice(
+              `Added ${created} task${created === 1 ? '' : 's'} to your planner` +
+                (failed ? ` · ${failed} skipped (past/invalid)` : '') +
+                '.',
+            )
+          } else if (failed > 0) {
+            setNotice('No tasks added — the proposed dates/values were invalid.')
+          }
+        } catch {
+          /* keep chat stable if task creation fails */
+        }
+      }
       api.chatHistory().then((d) => setHistory(d.chats || [])).catch(() => {})
     } catch (err) {
       if (err.name === 'AbortError') return
@@ -135,6 +229,7 @@ export default function Chat() {
         </div>
 
         {error && <p className="px-5 py-2 text-sm text-destructive bg-destructive/10 border-t border-destructive/20">{error}</p>}
+        {notice && <p className="px-5 py-2 text-sm text-success bg-success/10 border-t border-success/20">{notice}</p>}
 
         {/* INPUT AREA */}
         <div className="p-4 border-t border-border bg-card">
