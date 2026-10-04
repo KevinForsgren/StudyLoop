@@ -1,25 +1,59 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api'
 
 function todayISO() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
 function greeting() {
   const h = new Date().getHours()
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+  return h < 12 ? 'Good morning' : h < 16 ? 'Good afternoon' : h < 20 ? 'Good evening' : 'Good night'
 }
-function fmt(dateISO) {
-  try {
-    const d = new Date(`${dateISO}T00:00:00`)
-    return d.toDateString().replace(/^\w+ /, '')
-  } catch {
-    return dateISO
-  }
-}
+
 function displayName(u) {
-  const name = (u && u.username) || 'friend'
+  const name = (u && u.username) || 'Admin'
   return name[0].toUpperCase() + name.slice(1)
+}
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+function getStartOfWeek(date = new Date()) {
+  const d = new Date(date)
+  const day = d.getDay()
+  // Adjust so Monday is day 0, Sunday is day 6
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+  d.setDate(diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function getEndOfWeek(startOfWeek) {
+  const d = new Date(startOfWeek)
+  d.setDate(d.getDate() + 6)
+  return d
+}
+
+function formatWeekRange() {
+  const start = getStartOfWeek()
+  const end = getEndOfWeek(start)
+
+  const startDay = start.toLocaleDateString('en-US', { weekday: 'short' })
+  const startDate = start.getDate()
+  const endDay = end.toLocaleDateString('en-US', { weekday: 'short' })
+  const endDate = end.getDate()
+
+  return `${startDay} ${startDate} - ${endDay} ${endDate}`
+}
+
+function getDateForDay(dayName) {
+  const start = getStartOfWeek()
+  const dayIndex = DAYS.indexOf(dayName)
+  if (dayIndex === -1) return todayISO()
+  
+  const targetDate = new Date(start)
+  targetDate.setDate(start.getDate() + dayIndex)
+  return `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
 }
 
 export default function Home({ user }) {
@@ -27,15 +61,13 @@ export default function Home({ user }) {
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
   const [busy, setBusy] = useState(false)
-  const [goal, setGoal] = useState('')
-  const active = useRef(null)
 
   async function load(signal) {
     try {
       const res = await api.tasks(signal)
-      setTasks((res.tasks || []).filter((t) => t.date === todayISO()))
+      setTasks(res.tasks || [])
     } catch (err) {
-      if (err.name === 'AbortError') return // aborted
+      if (err.name === 'AbortError') return
       setError(err.message)
     }
   }
@@ -44,8 +76,6 @@ export default function Home({ user }) {
     const c = new AbortController()
     load(c.signal)
     return () => {
-      // Cancel an in-flight AI generation (and any fetch) when leaving the page.
-      if (active.current) active.current.abort()
       c.abort()
     }
   }, [])
@@ -56,21 +86,41 @@ export default function Home({ user }) {
 
   async function addTask(e) {
     e.preventDefault()
-    const name = String(e.target.task_name.value || '').trim()
+    const form = e.currentTarget
+    const name = String(form.task_name.value || '').trim()
     if (!name) return
-    const duration = Math.max(Number(e.target.duration.value || 30) || 30, 1)
+    const duration = Math.max(Number(form.duration.value || 30) || 30, 1)
+    const selectedDay = form.day ? form.day.value : 'Monday'
+    const computedDate = getDateForDay(selectedDay)
+
     setBusy(true)
     setError(null)
     try {
       const planId = currentPlanId()
       if (planId) {
-        await api.createTask({ plan_id: planId, task_name: name, date: todayISO(), estimated_duration: duration })
+        await api.createTask({
+          plan_id: planId,
+          task_name: name,
+          date: computedDate,
+          estimated_duration: duration,
+          day: selectedDay,
+        })
       } else {
-        await api.createPlan({ title: `Plan · ${todayISO()}`, tasks: [{ task_name: name, date: todayISO(), estimated_duration: duration }] })
+        await api.createPlan({
+          title: `Plan · ${computedDate}`,
+          tasks: [
+            {
+              task_name: name,
+              date: computedDate,
+              estimated_duration: duration,
+              day: selectedDay,
+            },
+          ],
+        })
       }
-      e.target.reset()
+      form.reset()
       await load()
-      setNotice('Task added to today’s plan.')
+      setNotice('Task added successfully.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -88,6 +138,21 @@ export default function Home({ user }) {
     }
   }
 
+  async function toggleAllForDay(dayTasks, shouldComplete) {
+    try {
+      for (const t of dayTasks) {
+        if (shouldComplete && !t.completed) {
+          await api.completeTask(t.id, null)
+        } else if (!shouldComplete && t.completed) {
+          await api.updateTask(t.id, { completed: false })
+        }
+      }
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   async function remove(t) {
     try {
       await api.deleteTask(t.id)
@@ -97,128 +162,121 @@ export default function Home({ user }) {
     }
   }
 
-  async function generateFromGoal(e) {
-    e.preventDefault()
-    const text = goal.trim()
-    if (!text || busy) return
-    setBusy(true)
-    setError(null)
-    const c = new AbortController()
-    if (active.current) active.current.abort()
-    active.current = c
-    try {
-      let proposed
-      try {
-        proposed = await api.generatePlan(text, c.signal)
-      } catch (err) {
-        if (err.name === 'AbortError') return
-        setError(`${err.message} You can add tasks manually below.`)
-        return
-      }
-      await api.createPlan({ title: proposed.proposal.title, tasks: proposed.proposal.tasks })
-      setGoal('')
-      await load()
-      setNotice('Plan generated and added to your planner.')
-    } catch (err) {
-      if (err.name === 'AbortError') return
-      setError(err.message)
-    } finally {
-      if (active.current === c) active.current = null
-      setBusy(false)
-    }
-  }
-
-  const done = tasks.filter((t) => t.completed).length
+  const groupedTasks = DAYS.reduce((acc, day) => {
+    acc[day] = tasks.filter((t) => t.day === day || (!t.day && day === 'Monday'))
+    return acc
+  }, {})
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-4xl mx-auto space-y-6 p-4">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           {greeting()}, {displayName(user)} 👋
         </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Your goals. Your plans. Your progress.
-        </p>
+        <div className="flex justify-between items-center text-sm text-muted-foreground mt-2">
+          <span>Current Week Plan</span>
+          <span>{formatWeekRange()}</span>
+        </div>
       </div>
 
-      <form className="bg-card border rounded-xl p-4 space-y-3" onSubmit={generateFromGoal}>
-        <label className="block text-sm">
-          <span className="text-muted-foreground">Generate a plan from a goal</span>
-          <textarea
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            rows={2}
-            maxLength={400}
-            placeholder="e.g. Prepare for my math exam this week"
-            className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-transparent resize-none"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={busy || !goal.trim()}
-          className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-        >
-          {busy ? 'Thinking…' : 'Generate plan'}
-        </button>
-      </form>
-
+      {/* Notifications */}
       {error && <p className="text-sm text-destructive">{error}</p>}
       {notice && <p className="text-sm text-success">{notice}</p>}
 
-      <section className="bg-card border rounded-xl">
-        <header className="px-4 py-3 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold">Today’s Plan</h2>
-            <p className="text-xs text-muted-foreground">{fmt(todayISO())}</p>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {done}/{tasks.length} done
-          </span>
-        </header>
+      {/* Main Weekly Container */}
+      <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-sm">
+        {DAYS.map((day, index) => {
+          const dayTasks = groupedTasks[day] || []
+          const doneCount = dayTasks.filter((t) => t.completed).length
+          const allCompleted = dayTasks.length > 0 && doneCount === dayTasks.length
 
-        {tasks.length === 0 && (
-          <p className="px-4 py-6 text-muted-foreground text-sm">
-            Nothing planned today. Add a task below or generate a plan.
-          </p>
-        )}
+          return (
+            <div key={day} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={allCompleted}
+                    disabled={dayTasks.length === 0}
+                    onChange={(e) => toggleAllForDay(dayTasks, e.target.checked)}
+                    aria-label={`Mark all tasks for ${day} complete`}
+                    className="w-4 h-4 rounded border-border accent-primary cursor-pointer disabled:opacity-40"
+                  />
+                  <h2 className="text-base font-medium">{day}</h2>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {doneCount}/{dayTasks.length} done
+                </span>
+              </div>
 
-        <ul className="divide-y divide-border">
-          {tasks.map((t) => (
-            <li key={t.id} className="px-4 py-3 flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={Boolean(t.completed)}
-                onChange={() => toggle(t)}
-                aria-label={`Mark ${t.task_name} complete`}
-                className="accent-[rgb(var(--accent))]"
-              />
-              <span className={t.completed ? 'line-through text-muted-foreground' : ''}>
-                {t.task_name}
-              </span>
-              <span className="text-xs text-muted-foreground">{t.estimated_duration || 0} min</span>
-              <span
-                className={`text-[11px] px-2 py-0.5 rounded-full ${
-                  t.completed ? 'bg-success/15 text-success' : 'bg-muted/10 text-muted-foreground'
-                }`}
-              >
-                {t.completed ? 'Completed' : 'Pending'}
-              </span>
-              <button
-                onClick={() => remove(t)}
-                className="ml-auto text-xs text-destructive hover:underline"
-                aria-label={`Delete ${t.task_name}`}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
+              {dayTasks.length > 0 && (
+                <div className="bg-background/50 border border-border rounded-lg overflow-hidden divide-y divide-border">
+                  {dayTasks.map((t) => (
+                    <div key={t.id} className="px-4 py-2.5 flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(t.completed)}
+                          onChange={() => toggle(t)}
+                          aria-label={`Mark ${t.task_name} complete`}
+                          className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
+                        />
+                        <span className={t.completed ? 'line-through text-muted-foreground' : ''}>
+                          {t.task_name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t.estimated_duration || 0} min
+                        </span>
+                      </div>
 
-        <form className="px-4 py-3 flex flex-wrap gap-2" onSubmit={addTask}>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-[11px] px-2 py-0.5 rounded-full ${
+                            t.completed
+                              ? 'bg-success/15 text-success'
+                              : 'bg-muted/20 text-muted-foreground'
+                          }`}
+                        >
+                          {t.completed ? 'Completed' : 'Pending'}
+                        </span>
+                        <button
+                          onClick={() => remove(t)}
+                          className="text-xs text-destructive hover:underline"
+                          aria-label={`Delete ${t.task_name}`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {index < DAYS.length - 1 && <hr className="border-border my-3" />}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Footer Add Task Section */}
+      <footer className="bg-card border border-border rounded-xl p-4">
+        <form className="flex flex-wrap items-center gap-3" onSubmit={addTask}>
+          <select
+            name="day"
+            className="px-3 py-2 border border-border rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {DAYS.map((d) => (
+              <option key={d} value={d} className="bg-card text-foreground">
+                {d}
+              </option>
+            ))}
+          </select>
           <input
             name="task_name"
-            placeholder="Add a task to today…"
-            className="flex-1 min-w-48 px-3 py-2 border border-border rounded-md bg-transparent text-sm"
+            placeholder="Add a task to planner..."
+            required
+            className="flex-1 min-w-[200px] px-3 py-2 border border-border rounded-md bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             aria-label="Task name"
           />
           <input
@@ -226,18 +284,18 @@ export default function Home({ user }) {
             type="number"
             min="1"
             defaultValue="30"
-            className="w-24 px-2 py-2 border border-border rounded-md bg-transparent text-sm"
+            className="w-20 px-3 py-2 border border-border rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             aria-label="Duration in minutes"
           />
           <button
             type="submit"
             disabled={busy}
-            className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm"
+            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            Add
+            Add Task
           </button>
         </form>
-      </section>
+      </footer>
     </div>
   )
 }
