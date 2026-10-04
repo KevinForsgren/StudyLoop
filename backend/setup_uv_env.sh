@@ -46,6 +46,25 @@ uv sync
 
 echo "✅ Dependencies installed successfully"
 
+# ------------------------------------------------------------------ #
+# Database folder: ensure <backend>/Database exists with an empty     #
+# studyloop.db file (tables are created on first app startup).        #
+# ------------------------------------------------------------------ #
+DATABASE_DIR="$(pwd)/Database"
+mkdir -p "$DATABASE_DIR"
+DATABASE_FILE="$DATABASE_DIR/studyloop.db"
+if [ ! -f "$DATABASE_FILE" ]; then
+    echo "🔧 Creating empty database at $DATABASE_FILE"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "import sqlite3; sqlite3.connect('$DATABASE_FILE').close()" 2>/dev/null \
+            || touch "$DATABASE_FILE"
+    else
+        touch "$DATABASE_FILE"
+    fi
+else
+    echo "✅ Database already exists at $DATABASE_FILE"
+fi
+
 # Create .env file from template if it doesn't exist
 if [ ! -f ".env" ]; then
     if [ -f ".env.template" ]; then
@@ -63,7 +82,7 @@ PORT=8000
 DEBUG=true
 
 # Database
-DATABASE_URL=sqlite:///./studyloop.db
+DATABASE_URL=sqlite:///./Database/studyloop.db
 
 # Security
 SECRET_KEY=your-secret-key-here-change-this-in-production

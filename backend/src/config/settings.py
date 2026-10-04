@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(default=True, env="DEBUG")
     
     # Database
-    DATABASE_URL: str = Field(default="sqlite:///./studyloop.db", env="DATABASE_URL")
+    # Relative sqlite:/// paths are resolved against the backend directory by
+    # db/session.py, so the file always lands in <backend>/Database/studyloop.db.
+    DATABASE_URL: str = Field(default="sqlite:///./Database/studyloop.db", env="DATABASE_URL")
     
     # Security
     SECRET_KEY: str = Field(default="your-secret-key-here-change-this-in-production", env="SECRET_KEY")

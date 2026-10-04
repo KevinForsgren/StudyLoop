@@ -81,7 +81,7 @@ print("Database Verification")
 
 import sqlite3
 try:
-    conn = sqlite3.connect('studyloop.db')
+    conn = sqlite3.connect('Database/studyloop.db')
     cursor = conn.cursor()
     
     cursor.execute("SELECT username, email, LENGTH(password_hash) as hash_len FROM users WHERE username = ?", ('simpleuser123',))
