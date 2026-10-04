@@ -1,11 +1,12 @@
 import { Link, NavLink } from 'react-router-dom'
+import { CalendarDays, Home, LogOut, MessageSquare, Moon, Sun, Timer, TrendingUp } from 'lucide-react'
 
 const NAV = [
-  { to: '/', label: 'Home', icon: '⌂' },
-  { to: '/chat', label: 'Chat', icon: '✉' },
-  { to: '/performance', label: 'Performance', icon: '▤' },
-  { to: '/progress', label: 'Progress', icon: '▓' },
-  { to: '/timer', label: 'Focus timer', icon: '◷' },
+  { to: '/', label: 'Home', icon: Home },
+  { to: '/chat', label: 'Chat', icon: MessageSquare },
+  { to: '/performance', label: 'Performance', icon: TrendingUp },
+  { to: '/progress', label: 'Progress', icon: CalendarDays },
+  { to: '/timer', label: 'Focus timer', icon: Timer },
 ]
 
 function navClass({ isActive }) {
@@ -15,6 +16,14 @@ function navClass({ isActive }) {
       ? 'bg-primary text-primary-foreground'
       : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
   ].join(' ')
+}
+
+function IconBox({ icon: I, size = 16 }) {
+  return (
+    <span className="w-5 inline-grid place-items-center" aria-hidden="true">
+      <I size={size} strokeWidth={2} />
+    </span>
+  )
 }
 
 export default function Layout({ user, theme, onToggleTheme, onLogout, children }) {
@@ -28,9 +37,7 @@ export default function Layout({ user, theme, onToggleTheme, onLogout, children 
         <nav className="mt-2 px-3 space-y-1" aria-label="Main">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.to === '/'} className={navClass}>
-              <span className="w-5 inline-grid place-items-center" aria-hidden="true">
-                {n.icon}
-              </span>
+              <IconBox icon={n.icon} />
               {n.label}
             </NavLink>
           ))}
@@ -41,8 +48,13 @@ export default function Layout({ user, theme, onToggleTheme, onLogout, children 
             Small steps every day lead to big results.
           </p>
           <p className="text-xs text-accent mt-1">Keep going!</p>
-          <p className="text-[11px] text-muted-foreground mt-4">
-            <span className="text-success">●</span> System Online · v1.0.0
+          <p className="text-[11px] text-muted-foreground mt-4 inline-flex items-center gap-1.5">
+            <span
+              className="rounded-full"
+              style={{ width: 8, height: 8, background: 'rgb(var(--success))' }}
+              aria-hidden="true"
+            />
+            System Online · v1.0.0
           </p>
         </div>
       </aside>
@@ -51,11 +63,11 @@ export default function Layout({ user, theme, onToggleTheme, onLogout, children 
         <header className="border-b border-border px-6 py-3 flex items-center justify-end gap-3">
           <button
             onClick={onToggleTheme}
-            className="w-8 h-8 rounded-md border border-border text-sm hover:bg-secondary"
+            className="w-9 h-9 rounded-md border border-border text-foreground hover:bg-secondary grid place-items-center"
             aria-label="Toggle color theme"
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
-            {theme === 'dark' ? '☀' : '☾'}
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground grid place-items-center text-sm">
             {user.username[0].toUpperCase()}
@@ -63,8 +75,9 @@ export default function Layout({ user, theme, onToggleTheme, onLogout, children 
           <span className="text-sm">{user.username}</span>
           <button
             onClick={onLogout}
-            className="px-3 py-1.5 rounded-md border border-border text-sm text-muted-foreground hover:bg-secondary"
+            className="px-3 py-1.5 rounded-md border border-border text-sm text-muted-foreground hover:bg-secondary inline-flex items-center gap-1.5"
           >
+            <LogOut size={14} strokeWidth={2} aria-hidden="true" />
             Log out
           </button>
         </header>
