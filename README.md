@@ -99,9 +99,7 @@ The app degrades gracefully when the model is unavailable — chat returns a cle
 ## Notes
 
 - Database: SQLite file lives at `backend/Database/studyloop.db` (see `DATABASE_URL`).
-- Windows: the backend source currently hardcodes Linux-style absolute `sys.path`
-  entries, so a native-Windows run needs those paths adjusted in `backend/src`
-  (a backend change) or a WSL environment. The Windows entry points still handle
-  venv creation and launching the backend + frontend.
+- The backend resolves its own source via `Path(__file__)`, so it runs on both
+  Windows and Linux without hard-coded absolute paths.
 - If PowerShell blocks scripts, run with:
   `powershell -ExecutionPolicy Bypass -File dev.ps1`

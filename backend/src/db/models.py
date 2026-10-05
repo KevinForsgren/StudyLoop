@@ -13,7 +13,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import text
 
 # Add src directory to Python path for module imports
-sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 Base = declarative_base()
 class User(Base):

@@ -16,7 +16,8 @@ import datetime as dt
 from datetime import date, datetime, timezone
 from typing import List, Optional
 
-sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel

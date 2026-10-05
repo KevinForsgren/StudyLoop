@@ -13,7 +13,8 @@ import sys
 from datetime import date, timedelta
 from typing import Optional
 
-sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text

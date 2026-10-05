@@ -10,7 +10,8 @@ exchange is persisted in the Chats table. When the AI is unavailable a clear
 import sys
 from datetime import date, datetime, timezone
 
-sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel

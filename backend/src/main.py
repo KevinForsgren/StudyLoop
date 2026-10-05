@@ -11,7 +11,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Add src directory to Python path to enable absolute imports
-sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[0]))
 
 from api.auth import router as auth_router
 from api.tasks import router as tasks_router

@@ -10,7 +10,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 # Add src directory to Python path for module imports
-sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Single shared .env lives at the repository root (one level above backend/).
 ROOT_ENV = str(Path(__file__).resolve().parents[3] / ".env")

@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
 # Add src directory to Python path for module imports
-sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config.settings import get_settings
 from db.models import Base

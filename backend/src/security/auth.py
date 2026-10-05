@@ -9,7 +9,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 # Import from src directory using absolute imports
-sys.path.insert(0, '/home/kevin/Desktop/Github/StudyLoop/backend/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config.settings import get_settings
 from argon2 import PasswordHasher
