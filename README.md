@@ -7,6 +7,11 @@ consistency graph, performance reports, and a Pomodoro focus timer.
 Frontend and backend live in separate directories and share a single `.env`
 at the repository root.
 
+<!--[App Demo]()-->
+[![Watch Demo](https://img.youtube.com/vi/fMiWJQOaBIM/maxresdefault.jpg)](https://youtu.be/fMiWJQOaBIM)
+
+
+
 ## Layout
 
 ```
