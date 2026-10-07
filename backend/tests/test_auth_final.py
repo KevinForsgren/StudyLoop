@@ -4,7 +4,8 @@ Final authentication test to verify all fixes work correctly
 """
 
 import sys
-sys.path.insert(0, 'src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from main import app
 from fastapi.testclient import TestClient
